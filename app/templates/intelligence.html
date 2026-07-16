@@ -1,0 +1,185 @@
+{% extends 'base.html' %}
+{% block title %}Business Intelligence{% endblock %}
+{% block page_title %}Business Intelligence{% endblock %}
+{% block breadcrumb %}Analytics & BI / Business Intelligence{% endblock %}
+
+{% block content %}
+<!-- KPI Row -->
+<div class="row g-3 mb-4">
+  <!-- MoM Sales growth -->
+  <div class="col-12 col-md-4">
+    <div class="kpi-card {% if growth_info.get('sales_growth', 0) >= 0 %}success{% else %}danger{% endif %}">
+      <div class="kpi-icon {% if growth_info.get('sales_growth', 0) >= 0 %}success{% else %}danger{% endif %}">
+        <i class="bi bi-{% if growth_info.get('sales_growth', 0) >= 0 %}graph-up{% else %}graph-down{% endif %}"></i>
+      </div>
+      <div class="kpi-label">MoM Sales Growth</div>
+      <div class="kpi-value">{% if growth_info.get('sales_growth', 0) >= 0 %}+{% endif %}{{ "%.2f"|format(growth_info.get('sales_growth', 0)) }}%</div>
+      <div class="kpi-subtext">latest month vs prior</div>
+    </div>
+  </div>
+
+  <!-- MoM Viewer growth -->
+  <div class="col-12 col-md-4">
+    <div class="kpi-card {% if growth_info.get('viewers_growth', 0) >= 0 %}info{% else %}warning{% endif %}">
+      <div class="kpi-icon {% if growth_info.get('viewers_growth', 0) >= 0 %}info{% else %}warning{% endif %}">
+        <i class="bi bi-people-fill"></i>
+      </div>
+      <div class="kpi-label">MoM Viewer Growth</div>
+      <div class="kpi-value">{% if growth_info.get('viewers_growth', 0) >= 0 %}+{% endif %}{{ "%.2f"|format(growth_info.get('viewers_growth', 0)) }}%</div>
+      <div class="kpi-subtext">audience expansion trend</div>
+    </div>
+  </div>
+
+  <!-- Stream quality index -->
+  <div class="col-12 col-md-4">
+    <div class="kpi-card success">
+      <div class="kpi-icon success"><i class="bi bi-award"></i></div>
+      <div class="kpi-label">Stream Efficiency</div>
+      <div class="kpi-value">Optimal</div>
+      <div class="kpi-subtext">duration-to-sales ratio is stable</div>
+    </div>
+  </div>
+</div>
+
+<!-- Seasonality Chart -->
+<div class="row g-4 mb-4">
+  <div class="col-12">
+    <div class="chart-container">
+      <div class="chart-header">
+        <div class="chart-title">
+          <i class="bi bi-calendar-event text-primary"></i> Monthly Sales Seasonality & Audience Trends
+        </div>
+        <button class="btn btn-sm btn-outline-primary btn-icon" onclick="downloadPNG('seasonalityChart')">
+          <i class="bi bi-download"></i>
+        </button>
+      </div>
+      <div class="chart-body">
+        <div id="seasonalityChart" style="height:350px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Moving Average & Outliers -->
+<div class="row g-4">
+  <!-- Moving Average Line -->
+  <div class="col-12 col-lg-7">
+    <div class="chart-container">
+      <div class="chart-header">
+        <div class="chart-title">
+          <i class="bi bi-graph-up text-primary"></i> Moving Average Smoothing Trend (7-Session Window)
+        </div>
+        <button class="btn btn-sm btn-outline-primary btn-icon" onclick="downloadPNG('movingAverageChart')">
+          <i class="bi bi-download"></i>
+        </button>
+      </div>
+      <div class="chart-body">
+        <div id="movingAverageChart" style="height:350px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Anomalous Outlier Sessions -->
+  <div class="col-12 col-lg-5">
+    <div class="card-panel h-100">
+      <div class="card-header-bar">
+        <div class="card-title">
+          <i class="bi bi-exclamation-triangle text-warning"></i> Anomalous Session Outliers
+        </div>
+        <span class="badge bg-warning-light text-warning" id="totalOutliersBadge">0 Flagged</span>
+      </div>
+      <div class="card-body-pad p-0" style="max-height:350px; overflow-y:auto;">
+        <table class="table table-premium m-0">
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th>Traffic</th>
+              <th>Actual</th>
+              <th>Expected</th>
+              <th>Performance</th>
+            </tr>
+          </thead>
+          <tbody id="outliersBody">
+            <tr>
+              <td colspan="5" class="text-center py-4 text-muted">
+                <span class="spinner-border spinner-border-sm me-2"></span>Detecting outliers...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  renderSeasonality();
+  loadTrendsAndOutliers();
+});
+
+function renderSeasonality() {
+  const rawData = JSON.parse('{{ seasonality_json|safe }}');
+  if (!rawData || rawData.length === 0) {
+    document.getElementById('seasonalityChart').innerHTML = '<div class="p-4 text-muted text-center">No seasonality data available.</div>';
+    return;
+  }
+
+  const months = rawData.map(r => r.Bulan.charAt(0).toUpperCase() + r.Bulan.slice(1));
+  const sales = rawData.map(r => r['Produk Terjual']);
+  const viewers = rawData.map(r => r['Penonton Aktif']);
+
+  window.renderSeasonalityBar('seasonalityChart', months, sales, viewers);
+}
+
+async function loadTrendsAndOutliers() {
+  const maChartEl = document.getElementById('movingAverageChart');
+  const outliersBody = document.getElementById('outliersBody');
+
+  try {
+    // 1. Load Moving Averages
+    const maRes = await getJSON('/api/v1/analytics/moving-average');
+    window.renderMovingAverage('movingAverageChart', maRes.actual_sales, maRes.ma_sales, maRes.sessions);
+
+    // 2. Load Outliers
+    const outRes = await getJSON('/api/v1/analytics/outliers');
+    document.getElementById('totalOutliersBadge').textContent = `${outRes.total_flagged} Flagged`;
+
+    if (outRes.outliers.length === 0) {
+      outliersBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No outlier sessions detected.</td></tr>';
+      return;
+    }
+
+    outliersBody.innerHTML = outRes.outliers.map(o => {
+      const isHigh = o.type.includes('High');
+      const badgeClass = isHigh ? 'bg-success-light text-success' : 'bg-danger-light text-danger';
+      const label = isHigh ? 'High Performer' : 'Low Performer';
+
+      return `<tr>
+        <td><strong>${o.bulan.charAt(0).toUpperCase() + o.bulan.slice(1)}</strong></td>
+        <td>${o.viewers} view · ${o.durasi}h</td>
+        <td><strong>${o.actual}</strong></td>
+        <td>${o.expected}</td>
+        <td><span class="badge ${badgeClass}">${label}</span></td>
+      </tr>`;
+    }).join('');
+
+  } catch (err) {
+    showToast(`Error loading intelligence cards: ${err.message}`, 'error');
+    maChartEl.innerHTML = '<div class="p-4 text-danger">Failed to load trend chart.</div>';
+    outliersBody.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4">Failed to compute outliers.</td></tr>';
+  }
+}
+
+function downloadPNG(elementId) {
+  Plotly.downloadImage(elementId, {
+    format: 'png',
+    width: 800,
+    height: 500,
+    filename: elementId
+  });
+}
+</script>
+{% endblock %}

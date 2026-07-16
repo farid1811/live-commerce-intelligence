@@ -1,0 +1,520 @@
+{% extends 'base.html' %}
+{% block title %}Prediction Center{% endblock %}
+{% block page_title %}Prediction Center{% endblock %}
+{% block breadcrumb %}ML Engine / Prediction Center{% endblock %}
+
+{% block content %}
+<!-- Section 1: Side-by-Side Prediction workspace -->
+<div class="row g-4 mb-4">
+  <!-- Left Column: Input Form (35% width on desktop) -->
+  <div class="col-12 col-lg-4">
+    <div class="card-panel h-100">
+      <div class="card-header-bar">
+        <div class="card-title">
+          <i class="bi bi-sliders text-primary"></i>
+          Configure Prediction
+        </div>
+        <span class="badge bg-primary-light text-primary">SGD Engine</span>
+      </div>
+      <div class="card-body-pad">
+
+        <!-- Model Selector -->
+        <div class="mb-4">
+          <label class="form-label" for="modelSelect">Active Prediction Model</label>
+          <select class="form-select" id="modelSelect" onchange="loadActiveModelDetails()">
+            <option value="">— Use Default (Fallback) Model —</option>
+            {% for m in models_list %}
+            <option value="{{ m.filename }}" {% if m.is_active %}selected{% endif %}>
+              {{ m.name }}
+            </option>
+            {% endfor %}
+          </select>
+          {% if not models_list %}
+          <div class="mt-2 p-2" style="background:var(--warning-light); border-radius:6px; font-size:12px; color:var(--warning);">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            No trained models found. Using fallback defaults. <a href="/training">Train a model →</a>
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Duration Slider -->
+        <div class="mb-4">
+          <label class="form-label d-flex justify-content-between" for="durationSlider">
+            <span><i class="bi bi-clock me-1 text-primary"></i> Live Duration</span>
+            <span class="slider-value-display" id="durationDisplay">8.0h</span>
+          </label>
+          <input type="range" class="form-range" id="durationSlider"
+                 min="0.5" max="24" step="0.5" value="8">
+          <div class="d-flex justify-content-between" style="font-size:11px; color:var(--text-muted);">
+            <span>0.5h (30 min)</span><span>24h (full day)</span>
+          </div>
+        </div>
+
+        <!-- Viewers Slider -->
+        <div class="mb-4">
+          <label class="form-label d-flex justify-content-between" for="viewersSlider">
+            <span><i class="bi bi-people me-1 text-primary"></i> Active Viewers</span>
+            <span class="slider-value-display" id="viewersDisplay">100</span>
+          </label>
+          <input type="range" class="form-range" id="viewersSlider"
+                 min="1" max="500" step="5" value="100">
+          <div class="d-flex justify-content-between" style="font-size:11px; color:var(--text-muted);">
+            <span>1 viewer</span><span>500 viewers</span>
+          </div>
+        </div>
+
+        <button class="btn btn-primary w-100 btn-lg" id="predictBtn" onclick="runPrediction()">
+          <i class="bi bi-stars me-2"></i> Run AI Prediction
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Column: AI Prediction Panel (65% width on desktop) -->
+  <div class="col-12 col-lg-8">
+    
+    <!-- State 1: AI Ready (Waiting for Input) -->
+    <div id="panelReady" class="card-panel h-100" style="min-height: 440px;">
+      <div class="card-header-bar">
+        <div class="card-title">
+          <i class="bi bi-stars text-primary"></i> AI Prediction Assistant
+        </div>
+        <span class="badge bg-success-light text-success">Ready</span>
+      </div>
+      <div class="card-body-pad">
+        <div class="d-flex align-items-center gap-3 mb-4">
+          <div class="p-3 bg-primary-light text-primary rounded-circle" style="font-size: 24px; width: 56px; height: 56px; display:flex; align-items:center; justify-content:center;">
+            <i class="bi bi-cpu"></i>
+          </div>
+          <div>
+            <h5 class="fw-bold text-dark mb-1">StreamAnalytica AI ready for input</h5>
+            <p class="text-secondary m-0" style="font-size: 13px;">Configure live duration &amp; active viewers parameters to project stream sales.</p>
+          </div>
+        </div>
+
+        <!-- Suggested Test Presets -->
+        <h6 class="fw-bold text-dark mb-3" style="font-size: 13px;"><i class="bi bi-rocket-takeoff text-primary me-2"></i>Suggested Examples (Click to Load)</h6>
+        <div class="row g-3 mb-4">
+          <!-- Preset 1 -->
+          <div class="col-12 col-md-4">
+            <div class="p-3 border rounded h-100" style="cursor: pointer; background: var(--bg); transition: all var(--transition);" onclick="loadPreset(1.5, 350, 'High Traffic Flash Sale')" onmouseover="this.style.borderColor='var(--primary)';" onmouseout="this.style.borderColor='var(--border)';">
+              <strong style="display:block; font-size:13px; color:var(--text);" class="mb-1">High-Traffic Peak</strong>
+              <span style="font-size:11px; color:var(--text-secondary);">1.5 Hours · 350 Viewers</span>
+            </div>
+          </div>
+          <!-- Preset 2 -->
+          <div class="col-12 col-md-4">
+            <div class="p-3 border rounded h-100" style="cursor: pointer; background: var(--bg); transition: all var(--transition);" onclick="loadPreset(4.0, 120, 'Standard Broadcast')" onmouseover="this.style.borderColor='var(--primary)';" onmouseout="this.style.borderColor='var(--border)';">
+              <strong style="display:block; font-size:13px; color:var(--text);" class="mb-1">Standard Stream</strong>
+              <span style="font-size:11px; color:var(--text-secondary);">4.0 Hours · 120 Viewers</span>
+            </div>
+          </div>
+          <!-- Preset 3 -->
+          <div class="col-12 col-md-4">
+            <div class="p-3 border rounded h-100" style="cursor: pointer; background: var(--bg); transition: all var(--transition);" onclick="loadPreset(12.0, 75, 'Marathon Stream')" onmouseover="this.style.borderColor='var(--primary)';" onmouseout="this.style.borderColor='var(--border)';">
+              <strong style="display:block; font-size:13px; color:var(--text);" class="mb-1">Marathon Broadcast</strong>
+              <span style="font-size:11px; color:var(--text-secondary);">12.0 Hours · 75 Viewers</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Prediction Tips -->
+        <h6 class="fw-bold text-dark mb-3" style="font-size: 13px;"><i class="bi bi-lightbulb text-warning me-2"></i>Prediction Tips & Model Insights</h6>
+        <div style="font-size:12.5px; color:var(--text-secondary); line-height: 1.7;">
+          <div class="mb-2"><i class="bi bi-patch-check text-success me-1"></i> <strong>Optimized Durations:</strong> Streaming for less than 1.0 hour triggers platform visibility rank penalties. Keep broadcasts above 1.5 hours.</div>
+          <div class="mb-0"><i class="bi bi-patch-check text-success me-1"></i> <strong>Scientific Constraints:</strong> The model weights are calculated under locked positive constraints ($\theta \ge 0$), meaning views always result in positive sales scaling.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- State 2: AI Processing Overlay -->
+    <div id="panelProcessing" class="card-panel h-100" style="display:none; min-height: 440px; padding: 32px;">
+      <div class="d-flex flex-column align-items-center justify-content-center h-100 py-3">
+        
+        <!-- Processing Icon -->
+        <div id="processingIcon" class="mb-4">
+          <div class="spinner-border text-primary" style="width: 3.5rem; height: 3.5rem; border-width: 0.25em;" role="status"></div>
+        </div>
+        
+        <h5 class="fw-bold mb-2 text-dark" id="processingStepText">Loading Regression Model</h5>
+        <p class="text-secondary mb-4" style="font-size:12.5px;" id="remainingTimeContainer">Estimated remaining time: <strong id="estTimeText">1.6s</strong></p>
+        
+        <!-- Progress Bar -->
+        <div class="progress-custom w-100 mb-4" style="max-width: 400px; height: 8px;">
+          <div class="progress-bar" id="processingProgressBar" style="width: 0%; height: 8px;"></div>
+        </div>
+        
+        <!-- Checklist Steps -->
+        <div class="w-100" style="max-width: 320px; font-size:12.5px; line-height: 2.0;">
+          <div class="d-flex align-items-center gap-2 text-muted" id="step_load">
+            <span class="step-dot" id="icon_load" style="width: 18px; display: inline-block; text-align: center;"><i class="bi bi-circle"></i></span>
+            <span>Loading Regression Model</span>
+          </div>
+          <div class="d-flex align-items-center gap-2 text-muted" id="step_read">
+            <span class="step-dot" id="icon_read" style="width: 18px; display: inline-block; text-align: center;"><i class="bi bi-circle"></i></span>
+            <span>Reading Dataset</span>
+          </div>
+          <div class="d-flex align-items-center gap-2 text-muted" id="step_opt">
+            <span class="step-dot" id="icon_opt" style="width: 18px; display: inline-block; text-align: center;"><i class="bi bi-circle"></i></span>
+            <span>Applying SGD Optimization</span>
+          </div>
+          <div class="d-flex align-items-center gap-2 text-muted" id="step_predict">
+            <span class="step-dot" id="icon_predict" style="width: 18px; display: inline-block; text-align: center;"><i class="bi bi-circle"></i></span>
+            <span>Running Prediction</span>
+          </div>
+          <div class="d-flex align-items-center gap-2 text-muted" id="step_insight">
+            <span class="step-dot" id="icon_insight" style="width: 18px; display: inline-block; text-align: center;"><i class="bi bi-circle"></i></span>
+            <span>Generating Business Insight</span>
+          </div>
+          <div class="d-flex align-items-center gap-2 text-muted" id="step_render">
+            <span class="step-dot" id="icon_render" style="width: 18px; display: inline-block; text-align: center;"><i class="bi bi-circle"></i></span>
+            <span>Finalizing Result</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- State 3: Result Display -->
+    <div id="panelResult" class="card-panel h-100" style="display:none; min-height: 440px;">
+      <div class="card-header-bar">
+        <div class="card-title">
+          <i class="bi bi-lightning-charge-fill text-primary"></i> AI Prediction Result
+        </div>
+        <span id="resultModelBadge" class="badge badge-model"></span>
+      </div>
+      <div class="card-body-pad">
+        <div class="row g-3 mb-4">
+          <!-- Predicted Sales display -->
+          <div class="col-12 col-md-6">
+            <div style="font-size:11px; color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:4px;">Predicted Products Sold</div>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="prediction-result-big" id="predValueDisplay" style="font-size: 48px; font-weight: 800; color: var(--primary);">—</span>
+              <span class="prediction-unit" style="font-size: 15px; font-weight: 600; color: var(--text-secondary);">units</span>
+            </div>
+          </div>
+          
+          <!-- KPI grid row: metrics -->
+          <div class="col-12 col-md-6">
+            <div class="row g-2">
+              <div class="col-6">
+                <div class="p-2 border rounded text-center">
+                  <div style="font-size:10px; color:var(--text-secondary); text-transform:uppercase; font-weight:600;">Confidence</div>
+                  <strong style="font-size:14px;" id="confidenceDisplay">—%</strong>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="p-2 border rounded text-center">
+                  <div style="font-size:10px; color:var(--text-secondary); text-transform:uppercase; font-weight:600;">Business Risk</div>
+                  <strong style="font-size:14px;" id="riskDisplay">—</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Prediction Interval bar -->
+        <div class="prediction-interval-bar mb-4" style="background: var(--primary-light); color: var(--primary); border-radius: 8px; padding: 12px 16px; font-size: 13px; font-weight: 500;">
+          <i class="bi bi-arrow-left-right me-2"></i>
+          95% Prediction Interval: <strong id="intervalDisplay">— to —</strong> products
+        </div>
+
+        <!-- Key Insight Box (Business Interpretation) -->
+        <div class="mb-3">
+          <label class="form-label fw-bold text-dark mb-1" style="font-size: 13px;"><i class="bi bi-chat-left-text-fill text-primary me-2"></i>Key Insight (Business Interpretation)</label>
+          <p id="interpretationText" style="font-size:13px; color:var(--text-secondary); line-height:1.6; margin:0;"></p>
+        </div>
+
+        <!-- AI Recommendation Box (Action Recommendation) -->
+        <div>
+          <label class="form-label fw-bold text-dark mb-1" style="font-size: 13px;"><i class="bi bi-lightbulb-fill text-warning me-2"></i>Action Recommendation (AI Recommendation)</label>
+          <div class="recommendation-box" style="display:flex; background: #FFFBEB; border: 1px solid #FDE68A; border-radius: var(--radius-sm); padding: 12px 16px; font-size: 13px; color: var(--text-secondary); line-height: 1.6;">
+            <i class="bi bi-lightbulb-fill rec-icon text-warning me-2 fs-6" style="margin-top: 2px;"></i>
+            <span id="recommendationText"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Section 2: Detailed Analytics (Secondary Info) -->
+<div class="row g-4">
+  <div class="col-12">
+    <div class="card-panel">
+      <div class="card-header-bar">
+        <div class="card-title">
+          <i class="bi bi-bar-chart-steps text-primary"></i> Detailed Model Analytics & Equations
+        </div>
+        <span class="badge bg-light text-secondary">Active Model Details</span>
+      </div>
+      <div class="card-body-pad">
+        <div class="row g-4">
+          <!-- Active model summary metrics -->
+          <div class="col-12 col-md-5">
+            <h6 class="fw-bold text-dark mb-3" style="font-size:13px;"><i class="bi bi-check-circle-fill text-success me-2"></i>Active Model Evaluation Metrics</h6>
+            
+            <div class="row g-2 text-center mb-4">
+              <div class="col-6">
+                <div class="p-2 border rounded">
+                  <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase;">R² Score</div>
+                  <strong style="font-size:15px;" id="metricsR2">—</strong>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="p-2 border rounded">
+                  <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase;">Mean Absolute Error</div>
+                  <strong style="font-size:15px;" id="metricsMAE">—</strong>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="p-2 border rounded">
+                  <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase;">RMSE</div>
+                  <strong style="font-size:15px;" id="metricsRMSE">—</strong>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="p-2 border rounded">
+                  <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase;">MAPE</div>
+                  <strong style="font-size:15px;" id="metricsMAPE">—</strong>
+                </div>
+              </div>
+            </div>
+
+            <!-- Mathematical Equation -->
+            <h6 class="fw-bold text-dark mb-2" style="font-size:13px;"><i class="bi bi-function text-primary me-2"></i>Research Equation (Thesis Formula)</h6>
+            <div class="formula-display" id="formulaDisplay" style="font-family: monospace; font-size:12.5px; background:var(--bg); padding:12px; border-radius:8px; border:1px solid var(--border); overflow-x:auto;">—</div>
+            <div class="mt-2" style="font-size:11px; color:var(--text-muted);">
+              The equation uses raw coefficients from unscaled training runs to align with the physical parameters.
+            </div>
+          </div>
+
+          <!-- Mini diagnostic scatter chart -->
+          <div class="col-12 col-md-7">
+            <h6 class="fw-bold text-dark mb-3" style="font-size:13px;"><i class="bi bi-graph-up-arrow text-primary me-2"></i>Actual vs. Predicted diagnostic Chart</h6>
+            <div id="miniScatterChart" style="height:260px; border:1px solid var(--border); border-radius:8px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Sliders live values updates
+const durationSlider = document.getElementById('durationSlider');
+const viewersSlider  = document.getElementById('viewersSlider');
+
+durationSlider.addEventListener('input', () => {
+  document.getElementById('durationDisplay').textContent = durationSlider.value + 'h';
+});
+viewersSlider.addEventListener('input', () => {
+  document.getElementById('viewersDisplay').textContent = viewersSlider.value;
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadActiveModelDetails();
+});
+
+// Load presets helper
+function loadPreset(duration, viewers, name) {
+  durationSlider.value = duration;
+  document.getElementById('durationDisplay').textContent = duration + 'h';
+  
+  viewersSlider.value = viewers;
+  document.getElementById('viewersDisplay').textContent = viewers;
+
+  showToast(`Loaded preset configuration: ${name}`, 'info');
+}
+
+// Fetch and populate secondary active model details
+async function loadActiveModelDetails() {
+  const r2El   = document.getElementById('metricsR2');
+  const maeEl  = document.getElementById('metricsMAE');
+  const rmseEl = document.getElementById('metricsRMSE');
+  const mapeEl = document.getElementById('metricsMAPE');
+  const chartEl = document.getElementById('miniScatterChart');
+  const formulaEl = document.getElementById('formulaDisplay');
+
+  r2El.textContent   = '—';
+  maeEl.textContent  = '—';
+  rmseEl.textContent = '—';
+  mapeEl.textContent = '—';
+  formulaEl.textContent = 'Loading...';
+  chartEl.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100"><span class="spinner-border spinner-border-sm text-primary me-2"></span>Loading diagnostic chart...</div>';
+
+  try {
+    const res = await getJSON('/api/v1/analytics/surface');
+    const m = res.metrics || {};
+    
+    r2El.textContent   = m.r2 != null ? m.r2.toFixed(4) : '—';
+    maeEl.textContent  = m.mae != null ? m.mae.toFixed(2) : '—';
+    rmseEl.textContent = m.rmse != null ? m.rmse.toFixed(2) : '—';
+    mapeEl.textContent = m.mape != null ? m.mape.toFixed(2) + '%' : '—';
+
+    // Build the equation display based on active model properties
+    const filename = document.getElementById('modelSelect').value;
+    const predictPayload = { durasi: 8.0, penonton: 100 };
+    if (filename) predictPayload.model_filename = filename;
+    
+    const predResult = await postJSON('/api/v1/predict', predictPayload);
+    
+    const tTheta  = predResult.theta_thesis  ?? [];
+    const tBias   = predResult.bias_thesis   ?? 0;
+    const mType   = predResult.model_type    ?? 'Linear';
+    let formula = '';
+    if (mType === 'Linear' && tTheta.length >= 2) {
+      formula = `y = ${tBias.toFixed(4)} + ${tTheta[0].toFixed(4)}·Duration + ${tTheta[1].toFixed(4)}·Viewers`;
+    } else if (mType === 'Logarithmic' && tTheta.length >= 2) {
+      formula = `y = ${tBias.toFixed(4)} + ${tTheta[0].toFixed(4)}·ln(Duration+1) + ${tTheta[1].toFixed(4)}·ln(Viewers+1)`;
+    } else if (mType === 'Polynomial') {
+      formula = `y = ${tBias.toFixed(4)} + θ₁·x₁ + θ₂·x₂ + θ₃·x₁² + θ₄·x₁x₂ + θ₅·x₂²`;
+    } else {
+      formula = `Model: ${predResult.model_name ?? 'Default'}`;
+    }
+    formulaEl.textContent = formula;
+
+    // Render diagnostic scatter
+    if (res.actual && res.predicted) {
+      window.renderActualVsPredicted(
+        'miniScatterChart',
+        res.actual.z,
+        res.predicted.z
+      );
+    } else {
+      chartEl.innerHTML = '<div class="p-4 text-muted text-center">No diagnostic points.</div>';
+    }
+
+  } catch (err) {
+    console.error('Failed to load active model specs:', err);
+    formulaEl.textContent = 'Fallback model configuration';
+    chartEl.innerHTML = '<div class="p-4 text-danger text-center">Failed to load chart data.</div>';
+  }
+}
+
+async function runPrediction() {
+  const durasi   = parseFloat(document.getElementById('durationSlider').value);
+  const penonton = parseInt(document.getElementById('viewersSlider').value);
+  const filename = document.getElementById('modelSelect').value;
+  const btn      = document.getElementById('predictBtn');
+
+  // Trigger UI state shift to State 2: AI Processing Overlay
+  showSpinner(btn);
+  document.getElementById('panelReady').style.display = 'none';
+  document.getElementById('panelResult').style.display = 'none';
+  document.getElementById('panelProcessing').style.display = 'block';
+
+  // Checklist of steps
+  const steps = [
+    { id: 'load', text: 'Loading Regression Model', pct: 16, duration: 250 },
+    { id: 'read', text: 'Reading Dataset', pct: 33, duration: 250 },
+    { id: 'opt', text: 'Applying SGD Optimization', pct: 50, duration: 300 },
+    { id: 'predict', text: 'Running Prediction', pct: 66, duration: 250 },
+    { id: 'insight', text: 'Generating Business Insight', pct: 83, duration: 250 },
+    { id: 'render', text: 'Finalizing Result', pct: 100, duration: 300 }
+  ];
+
+  resetSteps(steps);
+
+  try {
+    const payload = { durasi, penonton };
+    if (filename) payload.model_filename = filename;
+
+    // Dispatch API post in background
+    const predictPromise = postJSON('/api/v1/predict', payload);
+
+    // sequential UI steps progression
+    let totalElapsed = 0;
+    const totalTimeMs = steps.reduce((sum, s) => sum + s.duration, 0);
+
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+      updateStepUI(step.id, 'active');
+      document.getElementById('processingStepText').textContent = step.text;
+      document.getElementById('processingProgressBar').style.width = `${step.pct}%`;
+      
+      const remainingMs = totalTimeMs - totalElapsed;
+      const remainingSecs = (remainingMs / 1000).toFixed(1);
+      document.getElementById('estTimeText').textContent = `${remainingSecs}s`;
+      
+      await delay(step.duration);
+      updateStepUI(step.id, 'done');
+      totalElapsed += step.duration;
+    }
+
+    // Completion Tick
+    document.getElementById('processingStepText').textContent = 'Prediction ready!';
+    document.getElementById('remainingTimeContainer').style.display = 'none';
+    document.getElementById('processingIcon').innerHTML = '<i class="bi bi-check-circle-fill text-success" style="font-size: 3.5rem;"></i>';
+    await delay(350);
+
+    // Resolve predictions data
+    const res = await predictPromise;
+
+    // State 3: Populate and transition to results panel
+    document.getElementById('predValueDisplay').textContent = res.prediction_correct ?? res.prediction ?? '—';
+    document.getElementById('confidenceDisplay').textContent = `${res.confidence ?? 50}%`;
+    
+    const risk = res.risk_level ?? 'Medium';
+    const riskDisplayEl = document.getElementById('riskDisplay');
+    riskDisplayEl.textContent = risk;
+    riskDisplayEl.className = 'd-block ' + (risk === 'Low' ? 'text-success' : risk === 'High' ? 'text-danger' : 'text-warning');
+
+    document.getElementById('intervalDisplay').textContent = `${res.lower_bound ?? '—'} to ${res.upper_bound ?? '—'}`;
+    document.getElementById('interpretationText').textContent = res.interpretation ?? '';
+    document.getElementById('recommendationText').textContent = res.recommendation ?? '';
+    document.getElementById('resultModelBadge').textContent = res.model_name ?? 'Default';
+
+    // Show Results Panel
+    document.getElementById('panelProcessing').style.display = 'none';
+    document.getElementById('panelResult').style.display = 'block';
+
+  } catch (err) {
+    document.getElementById('panelProcessing').style.display = 'none';
+    document.getElementById('panelReady').style.display = 'block';
+    showToast(`Prediction failed: ${err.message}`, 'error');
+  } finally {
+    hideSpinner(btn);
+  }
+}
+
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function resetSteps(stepsList) {
+  document.getElementById('processingIcon').innerHTML = '<div class="spinner-border text-primary" style="width: 3.5rem; height: 3.5rem; border-width: 0.25em;" role="status"></div>';
+  document.getElementById('remainingTimeContainer').style.display = 'block';
+  document.getElementById('processingProgressBar').style.width = '0%';
+  
+  stepsList.forEach(s => {
+    const row = document.getElementById(`step_${s.id}`);
+    const icon = document.getElementById(`icon_${s.id}`);
+    if (row && icon) {
+      row.className = 'd-flex align-items-center gap-2 text-muted';
+      icon.innerHTML = '<i class="bi bi-circle"></i>';
+    }
+  });
+}
+
+function updateStepUI(stepId, state) {
+  const row = document.getElementById(`step_${stepId}`);
+  const icon = document.getElementById(`icon_${stepId}`);
+  if (!row || !icon) return;
+
+  if (state === 'active') {
+    row.className = 'd-flex align-items-center gap-2 text-primary fw-medium';
+    icon.innerHTML = '<span class="spinner-border spinner-border-sm text-primary"></span>';
+  } else if (state === 'done') {
+    row.className = 'd-flex align-items-center gap-2 text-success';
+    icon.innerHTML = '<i class="bi bi-check-circle-fill text-success" style="font-size:14px;"></i>';
+  }
+}
+</script>
+{% endblock %}

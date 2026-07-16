@@ -1,0 +1,231 @@
+{% extends 'base.html' %}
+{% block title %}Executive Dashboard{% endblock %}
+{% block page_title %}Executive Dashboard{% endblock %}
+{% block breadcrumb %}Monitor / Dashboard{% endblock %}
+
+{% block content %}
+<!-- KPI Row -->
+<div class="row g-3 mb-4">
+  <!-- Business Health Score -->
+  <div class="col-12 col-sm-6 col-xl-2">
+    <div class="kpi-card success">
+      <div class="kpi-icon success"><i class="bi bi-heart-pulse"></i></div>
+      <div class="kpi-label">Health Score</div>
+      <div class="kpi-value">92<span style="font-size:18px;font-weight:600">%</span></div>
+      <div class="kpi-subtext text-success"><i class="bi bi-arrow-up-short"></i> Excellent</div>
+    </div>
+  </div>
+
+  <!-- Sales Projection -->
+  <div class="col-12 col-sm-6 col-xl-2">
+    <div class="kpi-card primary">
+      <div class="kpi-icon primary"><i class="bi bi-bag-check"></i></div>
+      <div class="kpi-label">Sales Projection</div>
+      <div class="kpi-value">{{ prediction_result.get('prediction', 0) }}</div>
+      <div class="kpi-subtext">products · next session</div>
+    </div>
+  </div>
+
+  <!-- Avg Viewers -->
+  <div class="col-12 col-sm-6 col-xl-2">
+    <div class="kpi-card info">
+      <div class="kpi-icon info"><i class="bi bi-people"></i></div>
+      <div class="kpi-label">Avg. Viewers</div>
+      <div class="kpi-value">{{ summary.get('avg_viewers', 0) }}</div>
+      <div class="kpi-subtext">per live session</div>
+    </div>
+  </div>
+
+  <!-- Forecast Confidence -->
+  <div class="col-12 col-sm-6 col-xl-2">
+    <div class="kpi-card primary">
+      <div class="kpi-icon primary"><i class="bi bi-shield-check"></i></div>
+      <div class="kpi-label">AI Confidence</div>
+      <div class="kpi-value">{{ prediction_result.get('confidence', 50) }}<span style="font-size:18px;font-weight:600">%</span></div>
+      <div class="kpi-subtext">model R²-based</div>
+    </div>
+  </div>
+
+  <!-- Avg Sales -->
+  <div class="col-12 col-sm-6 col-xl-2">
+    <div class="kpi-card success">
+      <div class="kpi-icon success"><i class="bi bi-graph-up-arrow"></i></div>
+      <div class="kpi-label">Avg. Sales / Session</div>
+      <div class="kpi-value">{{ "%.1f"|format(summary.get('avg_sales', 0)) }}</div>
+      <div class="kpi-subtext">{{ summary.get('total_sessions', 0) }} sessions</div>
+    </div>
+  </div>
+
+  <!-- Business Risk -->
+  <div class="col-12 col-sm-6 col-xl-2">
+    {% set risk = prediction_result.get('risk_level', 'Medium') %}
+    {% if risk == 'Low' %}
+      <div class="kpi-card success">
+      <div class="kpi-icon success"><i class="bi bi-check-circle"></i></div>
+    {% elif risk == 'High' %}
+      <div class="kpi-card danger">
+      <div class="kpi-icon danger"><i class="bi bi-exclamation-triangle"></i></div>
+    {% else %}
+      <div class="kpi-card warning">
+      <div class="kpi-icon warning"><i class="bi bi-exclamation-circle"></i></div>
+    {% endif %}
+      <div class="kpi-label">Business Risk</div>
+      <div class="kpi-value" style="font-size:22px;">{{ risk }}</div>
+      <div class="kpi-subtext">current forecast</div>
+    </div>
+  </div>
+</div>
+
+<!-- AI Executive Insight + Growth Row -->
+<div class="row g-3 mb-4">
+  <!-- Insight Card -->
+  <div class="col-12 col-lg-8">
+    <div class="insight-card">
+      <div class="insight-greeting"><i class="bi bi-stars me-1"></i> AI EXECUTIVE INSIGHT</div>
+      <div class="insight-headline">Good Analysis, Analyst. Here's your live commerce snapshot.</div>
+      <div class="insight-body">
+        Based on <strong>{{ summary.get('total_sessions', 0) }} streaming sessions</strong>, 
+        the platform averages <strong>{{ "%.1f"|format(summary.get('avg_duration', 0)) }} hours</strong> per stream
+        with <strong>{{ summary.get('avg_viewers', 0) }} active viewers</strong>, 
+        yielding an average of <strong>{{ "%.1f"|format(summary.get('avg_sales', 0)) }} products sold per session</strong>. 
+        {% if growth_info.get('sales_growth', 0) > 0 %}
+        Month-on-month sales are growing at <strong>+{{ growth_info.get('sales_growth', 0) }}%</strong>.
+        {% else %}
+        Month-on-month sales show a movement of <strong>{{ growth_info.get('sales_growth', 0) }}%</strong>.
+        {% endif %}
+        The active model predicts the next session will sell approximately 
+        <strong>{{ prediction_result.get('prediction', '—') }} products</strong>.
+      </div>
+
+      <div class="insight-stats">
+        <div class="insight-stat-badge">
+          <div class="stat-num">{{ prediction_result.get('prediction', '—') }}</div>
+          <div class="stat-label">Expected Sales</div>
+        </div>
+        <div class="insight-stat-badge">
+          <div class="stat-num {% if prediction_result.get('risk_level') == 'Low' %}text-success{% elif prediction_result.get('risk_level') == 'High' %}text-danger{% else %}text-warning{% endif %}">
+            {{ prediction_result.get('risk_level', 'Medium') }}
+          </div>
+          <div class="stat-label">Risk Level</div>
+        </div>
+        <div class="insight-stat-badge">
+          <div class="stat-num">{{ prediction_result.get('confidence', 50) }}%</div>
+          <div class="stat-label">AI Confidence</div>
+        </div>
+        <div class="insight-stat-badge">
+          <div class="stat-num">{{ prediction_result.get('lower_bound', 0) }}–{{ prediction_result.get('upper_bound', 0) }}</div>
+          <div class="stat-label">95% Interval</div>
+        </div>
+      </div>
+
+      {% if prediction_result.get('recommendation') %}
+      <div class="recommendation-box">
+        <i class="bi bi-lightbulb-fill rec-icon"></i>
+        <span><strong>Recommended Action:</strong> {{ prediction_result.get('recommendation', '') }}</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Growth Cards -->
+  <div class="col-12 col-lg-4">
+    <div class="row g-3 h-100">
+      <div class="col-12">
+        <div class="kpi-card {% if growth_info.get('sales_growth', 0) >= 0 %}success{% else %}danger{% endif %}" style="height:100%">
+          <div class="kpi-icon {% if growth_info.get('sales_growth', 0) >= 0 %}success{% else %}danger{% endif %}">
+            <i class="bi bi-{% if growth_info.get('sales_growth', 0) >= 0 %}graph-up{% else %}graph-down{% endif %}"></i>
+          </div>
+          <div class="kpi-label">MoM Sales Growth</div>
+          <div class="kpi-value">
+            {% if growth_info.get('sales_growth', 0) >= 0 %}+{% endif %}{{ growth_info.get('sales_growth', 0) }}%
+          </div>
+          <div class="kpi-subtext">vs. prior month · {{ growth_info.get('latest_month', 'N/A') }}</div>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="kpi-card {% if growth_info.get('viewers_growth', 0) >= 0 %}info{% else %}warning{% endif %}" style="height:100%">
+          <div class="kpi-icon {% if growth_info.get('viewers_growth', 0) >= 0 %}info{% else %}warning{% endif %}">
+            <i class="bi bi-people-fill"></i>
+          </div>
+          <div class="kpi-label">MoM Viewer Growth</div>
+          <div class="kpi-value">
+            {% if growth_info.get('viewers_growth', 0) >= 0 %}+{% endif %}{{ growth_info.get('viewers_growth', 0) }}%
+          </div>
+          <div class="kpi-subtext">audience trend</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 4 Analytical Questions -->
+<div class="row g-3">
+  <div class="col-12">
+    <div style="font-size:12px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.8px; margin-bottom:12px;">
+      <i class="bi bi-question-circle me-1"></i>Strategic Intelligence — 4 Key Questions
+    </div>
+  </div>
+
+  <!-- Q1: What happened? -->
+  <div class="col-12 col-md-6 col-xl-3">
+    <div class="question-card">
+      <div class="question-num">1</div>
+      <div class="question-title">What happened?</div>
+      <div class="question-answer">
+        Across <strong>{{ summary.get('total_sessions', 0) }}</strong> recorded live sessions,
+        the store sold an average of <strong>{{ "%.1f"|format(summary.get('avg_sales', 0)) }}</strong> products per stream.
+        The peak session reached <strong>{{ summary.get('max_sales', 0) }}</strong> products sold,
+        while the lowest was <strong>{{ summary.get('min_sales', 0) }}</strong>.
+        Average stream duration was <strong>{{ "%.1f"|format(summary.get('avg_duration', 0)) }}h</strong>.
+      </div>
+    </div>
+  </div>
+
+  <!-- Q2: Why? -->
+  <div class="col-12 col-md-6 col-xl-3">
+    <div class="question-card">
+      <div class="question-num">2</div>
+      <div class="question-title">Why did it happen?</div>
+      <div class="question-answer">
+        The SGD-optimized regression model identifies 
+        <strong>Live Duration</strong> and <strong>Active Viewers</strong>
+        as the primary drivers of product sales.
+        Sessions with higher viewer counts and optimal durations
+        consistently outperform short, low-traffic streams.
+        The model type used is: <strong>{{ active_model_name }}</strong>.
+      </div>
+    </div>
+  </div>
+
+  <!-- Q3: What will happen? -->
+  <div class="col-12 col-md-6 col-xl-3">
+    <div class="question-card">
+      <div class="question-num">3</div>
+      <div class="question-title">What will happen?</div>
+      <div class="question-answer">
+        At average operating conditions, the AI model forecasts
+        <strong>{{ prediction_result.get('prediction', '—') }} products</strong> sold in the next session.
+        The 95% prediction interval ranges from
+        <strong>{{ prediction_result.get('lower_bound', '—') }}</strong> to
+        <strong>{{ prediction_result.get('upper_bound', '—') }}</strong> products.
+        Model confidence: <strong>{{ prediction_result.get('confidence', 50) }}%</strong>.
+      </div>
+    </div>
+  </div>
+
+  <!-- Q4: What to do? -->
+  <div class="col-12 col-md-6 col-xl-3">
+    <div class="question-card">
+      <div class="question-num">4</div>
+      <div class="question-title">What should we do?</div>
+      <div class="question-answer">
+        {{ prediction_result.get('recommendation', 'Visit the Prediction Center to run custom forecasts for specific stream configurations. Use Training Center to retrain models on fresh data.') }}
+        <br><br>
+        <a href="/prediction" class="btn btn-primary btn-sm mt-1">
+          <i class="bi bi-stars me-1"></i> Run Prediction
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

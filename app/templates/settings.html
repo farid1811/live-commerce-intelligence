@@ -1,0 +1,171 @@
+{% extends 'base.html' %}
+{% block title %}System Settings{% endblock %}
+{% block page_title %}Settings & Control Panel{% endblock %}
+{% block breadcrumb %}Data & Admin / Settings{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <!-- Left Column: System Info -->
+  <div class="col-12 col-lg-6">
+    <!-- Configuration Metadata -->
+    <div class="card-panel mb-4">
+      <div class="card-header-bar">
+        <div class="card-title">
+          <i class="bi bi-info-circle text-primary"></i> System Environment Information
+        </div>
+      </div>
+      <div class="card-body-pad p-0">
+        <table class="table table-premium m-0">
+          <tbody>
+            <tr>
+              <td><strong>Application Version</strong></td>
+              <td>v{{ system_info.product_version }}</td>
+            </tr>
+            <tr>
+              <td><strong>Active Environment</strong></td>
+              <td>{{ system_info.flask_env }} (Flask 3.1.2)</td>
+            </tr>
+            <tr>
+              <td><strong>Dataset Path</strong></td>
+              <td><code style="font-size:11px;">{{ system_info.default_dataset }}</code></td>
+            </tr>
+            <tr>
+              <td><strong>Models Directory</strong></td>
+              <td><code style="font-size:11px;">{{ system_info.model_dir }}</code></td>
+            </tr>
+            <tr>
+              <td><strong>Upload Folder</strong></td>
+              <td><code style="font-size:11px;">{{ system_info.upload_dir }}</code></td>
+            </tr>
+            <tr>
+              <td><strong>Total Dataset Rows</strong></td>
+              <td>{{ system_info.dataset_rows }} sessions</td>
+            </tr>
+            <tr>
+              <td><strong>SGD Optimization Constraints</strong></td>
+              <td><span class="badge bg-success-light text-success"><i class="bi bi-lock me-1"></i>Enforced (θ &ge; 0, bias &ge; 0)</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Thesis Compliance Lock -->
+    <div class="compliance-box">
+      <div style="font-size:13px; font-weight:700; color:var(--primary); margin-bottom:6px;">
+        <i class="bi bi-shield-check-fill me-1"></i> Thesis Compliance Policy
+      </div>
+      <p style="font-size:12.5px; color:var(--text-secondary); line-height:1.65; margin:0;">
+        The system constraints are hard-locked inside <code>training_service.py</code> to ensure scientific alignment with your thesis. The optimization algorithm enforces non-negativity constraints at each epoch:
+        <br>
+        <code>theta = np.maximum(theta, 0)</code> and <code>bias = max(bias, 0)</code>.
+        <br>
+        This prevents negative coefficients, preserving scientific methodology.
+      </p>
+    </div>
+  </div>
+
+  <!-- Right Column: Model Management & Danger Zone -->
+  <div class="col-12 col-lg-6">
+    <!-- Model list with Delete option -->
+    <div class="card-panel mb-4">
+      <div class="card-header-bar">
+        <div class="card-title">
+          <i class="bi bi-cpu text-primary"></i> Registered Models Management
+        </div>
+      </div>
+      <div class="card-body-pad p-0" style="max-height:300px; overflow-y:auto;">
+        <table class="table table-premium m-0">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Created</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for m in models_list %}
+            <tr>
+              <td>
+                <strong>{{ m.name }}</strong>
+                {% if m.is_active %}<span class="badge badge-active ms-1">Active</span>{% endif %}
+              </td>
+              <td><span class="badge bg-light text-secondary">{{ m.model_type }}</span></td>
+              <td style="font-size:11px;">{{ m.timestamp }}</td>
+              <td>
+                {% if m.is_active %}
+                <span class="text-muted" style="font-size:12px;">Active</span>
+                {% else %}
+                <button class="btn btn-sm btn-outline-danger py-1" onclick="deleteModel('{{ m.filename }}')">Delete</button>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+            {% if not models_list %}
+            <tr>
+              <td colspan="4" class="text-center text-muted py-4">No registered models found.</td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Danger Zone -->
+    <div class="danger-zone">
+      <div class="danger-zone-title"><i class="bi bi-exclamation-triangle-fill"></i> Danger Zone</div>
+      <p style="font-size:12.5px; color:var(--text-secondary); margin-bottom:14px;">
+        Deleting all models will clear the model directory. This cannot be undone.
+      </p>
+      <button class="btn btn-danger btn-sm" id="purgeBtn" onclick="purgeRegistry()">
+        <i class="bi bi-trash"></i> Purge All Models
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function deleteModel(filename) {
+  if (!confirm(`Are you sure you want to delete model ${filename}?`)) return;
+
+  try {
+    const res = await postJSON(`/api/v1/models/delete/${filename}`, {}, 'DELETE');
+    // Note: since our delete endpoint is DELETE method, let's use standard fetch if postJSON is POST only
+    const rawRes = await fetch(`/api/v1/models/delete/${filename}`, { method: 'DELETE' });
+    const data = await rawRes.json();
+    if (data.success) {
+      showToast('Model deleted successfully.', 'success');
+      setTimeout(() => location.reload(), 1000);
+    } else {
+      showToast(data.message || 'Delete failed', 'error');
+    }
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+async function purgeRegistry() {
+  if (!confirm('WARNING: Are you sure you want to delete ALL models in the registry? This action is irreversible.')) return;
+  const btn = document.getElementById('purgeBtn');
+  showSpinner(btn);
+
+  try {
+    const rawRes = await fetch('/api/v1/models/purge', { method: 'DELETE' });
+    const data = await rawRes.json();
+    if (data.success) {
+      showToast('✓ Model registry purged.', 'success');
+      setTimeout(() => location.reload(), 1000);
+    } else {
+      showToast(data.message || 'Purge failed', 'error');
+    }
+  } catch (e) {
+    showToast(e.message, 'error');
+  } finally {
+    hideSpinner(btn);
+  }
+}
+</script>
+{% endblock %}

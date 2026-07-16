@@ -1,0 +1,285 @@
+{% extends 'base.html' %}
+{% block title %}Dataset Manager{% endblock %}
+{% block page_title %}Dataset Manager{% endblock %}
+{% block breadcrumb %}Data & Admin / Dataset Manager{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <!-- Upload Zone Left -->
+  <div class="col-12 col-lg-4">
+    <div class="card-panel">
+      <div class="card-header-bar">
+        <div class="card-title">
+          <i class="bi bi-cloud-arrow-up text-primary"></i> Upload Live Sessions Dataset
+        </div>
+      </div>
+      <div class="card-body-pad">
+        <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+          <i class="bi bi-file-earmark-excel upload-icon"></i>
+          <span style="font-size:13.5px; font-weight:600; color:var(--text); display:block; margin-bottom:4px;">Drag & Drop Excel/CSV Here</span>
+          <span style="font-size:11.5px; color:var(--text-muted);">or click to browse local files</span>
+          <input type="file" id="fileInput" style="display:none;" accept=".xlsx,.csv" onchange="handleFileSelect(this)">
+        </div>
+
+        <div id="uploadProgressPanel" class="mt-3" style="display:none;">
+          <div class="d-flex justify-content-between mb-1" style="font-size:12px;">
+            <span id="uploadStatusText">Uploading file...</span>
+            <span id="uploadPctText">0%</span>
+          </div>
+          <div class="progress-custom">
+            <div class="progress-bar" id="uploadProgressBar" style="width: 0%;"></div>
+          </div>
+        </div>
+
+        <!-- Schema note -->
+        <div class="p-3 border rounded bg-light mt-3" style="font-size:12px; line-height:1.6; color:var(--text-secondary);">
+          <div style="font-weight:700; color:var(--text); margin-bottom:4px;"><i class="bi bi-info-circle text-primary me-1"></i> Required Columns</div>
+          The dataset uploaded must contain the following exact columns:<br>
+          - <code>Durasi_Jam</code> (numeric: stream hours)<br>
+          - <code>Penonton Aktif</code> (integer: viewer count)<br>
+          - <code>Produk Terjual</code> (integer: sales count)<br>
+          - <code>Bulan</code> (text: month name in indonesian)
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs Data Right -->
+  <div class="col-12 col-lg-8">
+    <div class="card-panel h-100">
+      <!-- Tabs header -->
+      <div class="card-header-bar p-0">
+        <ul class="nav nav-tabs border-0" id="datasetTabs" role="tablist" style="padding-left:12px;">
+          <li class="nav-item-tab" role="presentation">
+            <button class="nav-link active py-3 px-4 border-0" id="preview-tab" data-bs-toggle="tab" data-bs-target="#previewPanel" type="button" role="tab" style="font-size:13px; font-weight:600; color:var(--text-secondary); background:none;">
+              <i class="bi bi-table me-1"></i> Data Preview
+            </button>
+          </li>
+          <li class="nav-item-tab" role="presentation">
+            <button class="nav-link py-3 px-4 border-0" id="stats-tab" data-bs-toggle="tab" data-bs-target="#statsPanel" type="button" role="tab" style="font-size:13px; font-weight:600; color:var(--text-secondary); background:none;">
+              <i class="bi bi-calculator me-1"></i> Summary Statistics
+            </button>
+          </li>
+          <li class="nav-item-tab" role="presentation">
+            <button class="nav-link py-3 px-4 border-0" id="corr-tab" data-bs-toggle="tab" data-bs-target="#corrPanel" type="button" role="tab" style="font-size:13px; font-weight:600; color:var(--text-secondary); background:none;">
+              <i class="bi bi-grid-3x3-gap me-1"></i> Feature Correlation
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <div class="card-body-pad p-0">
+        <div class="tab-content" id="datasetTabsContent">
+          <!-- Tab 1: Preview -->
+          <div class="tab-pane fade show active" id="previewPanel" role="tabpanel">
+            <div style="max-height:430px; overflow-y:auto;">
+              <table class="table table-premium m-0">
+                <thead>
+                  <tr id="previewHeader">
+                    <th>Row #</th>
+                    <th>Month</th>
+                    <th>Duration (Hours)</th>
+                    <th>Active Viewers</th>
+                    <th>Products Sold</th>
+                  </tr>
+                </thead>
+                <tbody id="previewBody">
+                  <tr>
+                    <td colspan="5" class="text-center py-5 text-muted">
+                      <span class="spinner-border spinner-border-sm me-2"></span>Loading dataset records...
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tab 2: Stats -->
+          <div class="tab-pane fade" id="statsPanel" role="tabpanel">
+            <div style="max-height:430px; overflow-y:auto;">
+              <table class="table table-premium m-0">
+                <thead>
+                  <tr>
+                    <th>Feature</th>
+                    <th>Count</th>
+                    <th>Mean</th>
+                    <th>Std Dev</th>
+                    <th>Min</th>
+                    <th>25%</th>
+                    <th>Median</th>
+                    <th>75%</th>
+                    <th>Max</th>
+                    <th>Outliers (IQR)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for s in stats %}
+                  <tr>
+                    <td><strong>{{ s.Feature }}</strong></td>
+                    <td>{{ s.Count|int }}</td>
+                    <td>{{ "%.4f"|format(s.Mean) }}</td>
+                    <td>{{ "%.4f"|format(s.get('Std Dev', 0)) }}</td>
+                    <td>{{ "%.1f"|format(s.Min) }}</td>
+                    <td>{{ "%.1f"|format(s['25%']) }}</td>
+                    <td>{{ "%.1f"|format(s.Median) }}</td>
+                    <td>{{ "%.1f"|format(s['75%']) }}</td>
+                    <td>{{ "%.1f"|format(s.Max) }}</td>
+                    <td><span class="badge bg-warning-light text-warning">{{ s.get('Outliers (IQR)', 0)|int }}</span></td>
+                  </tr>
+                  {% endfor %}
+                  {% if not stats %}
+                  <tr>
+                    <td colspan="10" class="text-center py-4 text-muted">No summary statistics available.</td>
+                  </tr>
+                  {% endif %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tab 3: Correlation -->
+          <div class="tab-pane fade" id="corrPanel" role="tabpanel">
+            <div class="p-4 d-flex justify-content-center">
+              <div id="correlationHeatmapChart" style="height:350px; width:100%; max-width:550px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  loadDatasetData();
+  setupDragAndDrop();
+});
+
+// Drag and drop setup
+function setupDragAndDrop() {
+  const zone = document.getElementById('uploadZone');
+  if (!zone) return;
+
+  ['dragenter', 'dragover'].forEach(e => {
+    zone.addEventListener(e, (ev) => {
+      ev.preventDefault();
+      zone.classList.add('drag-over');
+    }, false);
+  });
+
+  ['dragleave', 'drop'].forEach(e => {
+    zone.addEventListener(e, (ev) => {
+      ev.preventDefault();
+      zone.classList.remove('drag-over');
+    }, false);
+  });
+
+  zone.addEventListener('drop', (ev) => {
+    const dt = ev.dataTransfer;
+    const files = dt.files;
+    if (files.length > 0) {
+      uploadFile(files[0]);
+    }
+  }, false);
+}
+
+function handleFileSelect(input) {
+  if (input.files && input.files.length > 0) {
+    uploadFile(input.files[0]);
+  }
+}
+
+async function uploadFile(file) {
+  const panel = document.getElementById('uploadProgressPanel');
+  const bar = document.getElementById('uploadProgressBar');
+  const pctText = document.getElementById('uploadPctText');
+  const statusText = document.getElementById('uploadStatusText');
+
+  panel.style.display = 'block';
+  bar.style.width = '0%';
+  pctText.textContent = '0%';
+  statusText.textContent = 'Uploading dataset file...';
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/v1/dataset/upload', true);
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        const pct = Math.round((e.loaded / e.total) * 100);
+        bar.style.width = `${pct}%`;
+        pctText.textContent = `${pct}%`;
+        if (pct === 100) {
+          statusText.textContent = 'Validating columns and rows...';
+        }
+      }
+    };
+
+    xhr.onload = function() {
+      if (xhr.status === 200) {
+        const res = JSON.parse(xhr.responseText);
+        showToast('✓ Dataset uploaded and verified.', 'success');
+        statusText.textContent = 'Upload complete.';
+        setTimeout(() => location.reload(), 1500);
+      } else {
+        const err = JSON.parse(xhr.responseText || '{"message":"Unknown error"}');
+        showToast(`Upload failed: ${err.message}`, 'error');
+        statusText.textContent = 'Validation failed.';
+        bar.className = 'progress-bar bg-danger';
+      }
+    };
+
+    xhr.onerror = function() {
+      showToast('Connection error during upload.', 'error');
+      statusText.textContent = 'Connection error.';
+    };
+
+    xhr.send(formData);
+
+  } catch (err) {
+    showToast(`Upload failed: ${err.message}`, 'error');
+  }
+}
+
+async function loadDatasetData() {
+  const tbody = document.getElementById('previewBody');
+  try {
+    const res = await getJSON('/api/v1/dataset/stats');
+    
+    // Preview Body
+    if (res.preview && res.preview.length > 0) {
+      tbody.innerHTML = res.preview.map((row, idx) => `
+        <tr>
+          <td>${idx + 1}</td>
+          <td><strong>${row.Bulan ? row.Bulan.charAt(0).toUpperCase() + row.Bulan.slice(1) : '—'}</strong></td>
+          <td>${row.Durasi_Jam ? row.Durasi_Jam.toFixed(2) : '—'}h</td>
+          <td>${row['Penonton Aktif'] ? row['Penonton Aktif'].toLocaleString() : '—'}</td>
+          <td><strong>${row['Produk Terjual'] ? row['Produk Terjual'].toLocaleString() : '—'}</strong></td>
+        </tr>
+      `).join('');
+    } else {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4">No preview records.</td></tr>';
+    }
+
+    // Heatmap
+    const corrTabBtn = document.getElementById('corr-tab');
+    corrTabBtn.addEventListener('shown.bs.tab', async () => {
+      try {
+        const corrRes = await getJSON('/api/v1/dataset/correlation');
+        window.renderCorrelationHeatmap('correlationHeatmapChart', corrRes.labels, corrRes.matrix);
+      } catch (e) {
+        console.error('Heatmap loading error:', e);
+      }
+    });
+
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4">Error: ${err.message}</td></tr>`;
+  }
+}
+</script>
+{% endblock %}

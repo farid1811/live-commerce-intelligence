@@ -1,0 +1,10 @@
+from flask import Blueprint
+dashboard_bp = Blueprint('dashboard', __name__, url_prefix='/')
+prediction_bp = Blueprint('prediction', __name__, url_prefix='/prediction')
+analytics_bp = Blueprint('analytics', __name__, url_prefix='/analytics')
+intelligence_bp = Blueprint('intelligence', __name__, url_prefix='/intelligence')
+training_bp = Blueprint('training', __name__, url_prefix='/training')
+dataset_bp = Blueprint('dataset', __name__, url_prefix='/dataset')
+experiments_bp = Blueprint('experiments', __name__, url_prefix='/experiments')
+reports_bp = Blueprint('reports', __name__, url_prefix='/reports')
+settings_bp = Blueprint('settings', __name__, url_prefix='/settings')

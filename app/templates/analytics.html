@@ -1,0 +1,144 @@
+{% extends 'base.html' %}
+{% block title %}Analytics{% endblock %}
+{% block page_title %}Analytics{% endblock %}
+{% block breadcrumb %}Analytics & BI / Analytics{% endblock %}
+
+{% block content %}
+<!-- Model Info Banner -->
+<div class="model-info-banner mb-4">
+  <div>
+    <span class="model-name">{{ model_info.get('name', 'Default Fallback Model') }}</span>
+    <span class="badge badge-model ms-2">{{ model_info.get('type', 'Linear') }}</span>
+  </div>
+  <div class="d-flex gap-2 ms-sm-auto flex-wrap">
+    <div class="model-metric-chip">R²: <strong>{{ "%.4f"|format(model_info.get('metrics', {}).get('r2', 0)) if model_info.get('metrics', {}).get('r2') is not none else 'N/A' }}</strong></div>
+    <div class="model-metric-chip">MAE: <strong>{{ "%.2f"|format(model_info.get('metrics', {}).get('mae', 0)) if model_info.get('metrics', {}).get('mae') is not none else 'N/A' }}</strong></div>
+    <div class="model-metric-chip">RMSE: <strong>{{ "%.2f"|format(model_info.get('metrics', {}).get('rmse', 0)) if model_info.get('metrics', {}).get('rmse') is not none else 'N/A' }}</strong></div>
+    <div class="model-metric-chip">MAPE: <strong>{{ "%.2f"|format(model_info.get('metrics', {}).get('mape', 0)) if model_info.get('metrics', {}).get('mape') is not none else 'N/A' }}%</strong></div>
+  </div>
+  <div>
+    <button class="btn btn-primary btn-sm" onclick="loadCharts()">
+      <i class="bi bi-arrow-clockwise"></i> Refresh Charts
+    </button>
+  </div>
+</div>
+
+<!-- 3D Regression Surface Chart -->
+<div class="row g-4 mb-4">
+  <div class="col-12">
+    <div class="chart-container">
+      <div class="chart-header">
+        <div class="chart-title">
+          <i class="bi bi-box text-primary"></i> 3D Regression Surface
+        </div>
+        <span class="badge bg-primary-light text-primary">Interactive 3D Visualizer</span>
+      </div>
+      <div class="chart-body p-0">
+        <div id="surface3DChart" style="height:550px; width:100%;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 2D Regression Charts Row -->
+<div class="row g-4">
+  <!-- Actual vs Predicted -->
+  <div class="col-12 col-lg-6">
+    <div class="chart-container">
+      <div class="chart-header">
+        <div class="chart-title">
+          <i class="bi bi-graph-up-arrow text-primary"></i> Actual vs Predicted
+        </div>
+        <button class="btn btn-sm btn-outline-primary btn-icon" onclick="downloadPNG('actualVsPredictedChart')">
+          <i class="bi bi-download"></i>
+        </button>
+      </div>
+      <div class="chart-body">
+        <div id="actualVsPredictedChart" style="height:350px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Residual Plot -->
+  <div class="col-12 col-lg-6">
+    <div class="chart-container">
+      <div class="chart-header">
+        <div class="chart-title">
+          <i class="bi bi-activity text-primary"></i> Residuals Analysis
+        </div>
+        <button class="btn btn-sm btn-outline-primary btn-icon" onclick="downloadPNG('residualChart')">
+          <i class="bi bi-download"></i>
+        </button>
+      </div>
+      <div class="chart-body">
+        <div id="residualChart" style="height:350px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  loadCharts();
+});
+
+async function loadCharts() {
+  const surfaceEl = document.getElementById('surface3DChart');
+  const actPredEl = document.getElementById('actualVsPredictedChart');
+  const residEl   = document.getElementById('residualChart');
+
+  surfaceEl.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100"><span class="spinner-border text-primary me-2"></span>Computing 3D surface mesh...</div>';
+  actPredEl.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100"><span class="spinner-border text-primary me-2"></span>Loading actuals...</div>';
+  residEl.innerHTML   = '<div class="d-flex justify-content-center align-items-center h-100"><span class="spinner-border text-primary me-2"></span>Loading residuals...</div>';
+
+  try {
+    const res = await getJSON('/api/v1/analytics/surface');
+
+    // 1. Render 3D Surface
+    if (res.surface) {
+      window.renderSurface3D(
+        'surface3DChart',
+        res.surface.dur_grid,
+        res.surface.view_grid,
+        res.surface.sales_mesh,
+        res.actual
+      );
+    }
+
+    // 2. Render Actual vs Predicted
+    if (res.actual && res.predicted) {
+      window.renderActualVsPredicted(
+        'actualVsPredictedChart',
+        res.actual.z,
+        res.predicted.z
+      );
+    }
+
+    // 3. Render Residuals
+    if (res.predicted && res.residuals) {
+      window.renderResidualPlot(
+        'residualChart',
+        res.predicted.z,
+        res.residuals
+      );
+    }
+  } catch (err) {
+    showToast(`Failed to load charts: ${err.message}`, 'error');
+    surfaceEl.innerHTML = '<div class="p-4 text-danger">Failed to load 3D chart.</div>';
+    actPredEl.innerHTML = '<div class="p-4 text-danger">Failed to load chart.</div>';
+    residEl.innerHTML = '<div class="p-4 text-danger">Failed to load residuals.</div>';
+  }
+}
+
+function downloadPNG(elementId) {
+  Plotly.downloadImage(elementId, {
+    format: 'png',
+    width: 800,
+    height: 500,
+    filename: elementId
+  });
+}
+</script>
+{% endblock %}

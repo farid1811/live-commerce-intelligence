@@ -1,0 +1,249 @@
+{% extends 'base.html' %}
+{% block title %}Training Center{% endblock %}
+{% block page_title %}Training Center{% endblock %}
+{% block breadcrumb %}ML Engine / Training Center{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <!-- Left: Training Config -->
+  <div class="col-12 col-lg-4">
+    <div class="card-panel">
+      <div class="card-header-bar">
+        <div class="card-title">
+          <i class="bi bi-gear-fill text-primary"></i> Training Engine Settings
+        </div>
+        <span class="badge bg-primary-light text-primary">Constrained SGD</span>
+      </div>
+      <div class="card-body-pad">
+        <!-- Model Type -->
+        <div class="mb-3">
+          <label class="form-label" for="modelType">Model Regression Type</label>
+          <select class="form-select" id="modelType">
+            <option value="Linear">Linear Regression</option>
+            <option value="Polynomial">Polynomial Regression (Deg 2)</option>
+            <option value="Logarithmic">Logarithmic Regression</option>
+          </select>
+        </div>
+
+        <!-- Data Type -->
+        <div class="mb-3">
+          <label class="form-label" for="dataType">Dataset Segment</label>
+          <select class="form-select" id="dataType">
+            <option value="All Data">All Data (Full Dataset)</option>
+            <option value="Cleaned Data">Cleaned Data (IQR Outliers Removed)</option>
+            <option value="Weekly Data">Weekly Data (Weekly Averages)</option>
+            <option value="Monthly Data">Monthly Data (Monthly Averages)</option>
+          </select>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Learning Rate -->
+        <div class="mb-3">
+          <label class="form-label d-flex justify-content-between" for="learningRate">
+            <span>Learning Rate (α)</span>
+            <span class="slider-value-display" id="lrDisplay">0.010</span>
+          </label>
+          <input type="range" class="form-range" id="learningRate"
+                 min="0.001" max="0.1" step="0.001" value="0.01">
+          <div class="d-flex justify-content-between" style="font-size:10px; color:var(--text-muted);">
+            <span>0.001</span><span>0.100</span>
+          </div>
+        </div>
+
+        <!-- Max Epochs -->
+        <div class="mb-3">
+          <label class="form-label d-flex justify-content-between" for="maxEpochs">
+            <span>Max Epochs</span>
+            <span class="slider-value-display" id="epochsDisplay">1,000</span>
+          </label>
+          <input type="range" class="form-range" id="maxEpochs"
+                 min="100" max="2500" step="50" value="1000">
+          <div class="d-flex justify-content-between" style="font-size:10px; color:var(--text-muted);">
+            <span>100</span><span>2,500</span>
+          </div>
+        </div>
+
+        <!-- Convergence Tolerance -->
+        <div class="mb-4">
+          <label class="form-label" for="tolerance">Convergence Tolerance (Δ RMSE)</label>
+          <select class="form-select" id="tolerance">
+            <option value="0.01">0.01 (Fast)</option>
+            <option value="0.001" selected>0.001 (Recommended)</option>
+            <option value="0.0001">0.0001 (Strict)</option>
+            <option value="0.00001">0.00001 (High Precision)</option>
+          </select>
+        </div>
+
+        <button class="btn btn-primary w-100 btn-lg" id="startTrainBtn" onclick="triggerTraining()">
+          <i class="bi bi-play-fill me-1"></i> Start SGD Training
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Real-time Monitor & Log -->
+  <div class="col-12 col-lg-8">
+    <!-- Placeholder initially -->
+    <div id="trainingPlaceholder" class="card-panel h-100 d-flex align-items-center justify-content-center" style="min-height:430px;">
+      <div class="text-center text-muted">
+        <i class="bi bi-cpu" style="font-size:48px; color:var(--border); display:block; margin-bottom:16px;"></i>
+        <div style="font-size:15px; font-weight:600; color:var(--text-secondary);">SGD Optimizer Monitor</div>
+        <div style="font-size:13px; margin-top:6px;">Configure parameters on the left and click <strong>Start SGD Training</strong></div>
+      </div>
+    </div>
+
+    <!-- Active progress monitor -->
+    <div id="trainingProgressPanel" class="training-panel" style="display:none; min-height:430px; padding:20px;">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <div style="font-size:15px; font-weight:700; color:var(--text)">
+          <i class="bi bi-cpu-fill text-primary spinner-border-sm me-2"></i>Optimizer Real-Time Stream
+        </div>
+        <span class="badge bg-primary-light text-primary" id="elapsedDisplay">0.0s</span>
+      </div>
+
+      <!-- Progress Bar -->
+      <div class="progress-custom mb-3">
+        <div class="progress-bar" role="progressbar" id="trainingProgressBar" style="width: 0%;">0%</div>
+      </div>
+
+      <!-- Real-time metrics grid -->
+      <div class="row g-3 mb-3">
+        <div class="col-4">
+          <div class="p-2 border rounded text-center">
+            <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; font-weight:600;">Epoch</div>
+            <div style="font-size:16px; font-weight:700;" id="currentEpoch">—</div>
+          </div>
+        </div>
+        <div class="col-4">
+          <div class="p-2 border rounded text-center">
+            <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; font-weight:600;">Current Loss</div>
+            <div style="font-size:16px; font-weight:700; font-family:monospace;" id="currentLoss">—</div>
+          </div>
+        </div>
+        <div class="col-4">
+          <div class="p-2 border rounded text-center">
+            <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; font-weight:600;">ETA</div>
+            <div style="font-size:16px; font-weight:700;" id="etaDisplay">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Split monitor: chart on left, log console on right -->
+      <div class="row g-3">
+        <!-- Live loss chart -->
+        <div class="col-12 col-md-6">
+          <div id="lossCurveChart" style="height:220px; border:1px solid var(--border); border-radius:8px;"></div>
+        </div>
+        <!-- Real-time log console -->
+        <div class="col-12 col-md-6">
+          <div class="training-log" id="trainingLog" style="height:220px;"></div>
+        </div>
+      </div>
+
+      <!-- Final Evaluation stats -->
+      <div class="mt-3 p-3 border rounded bg-light" id="finalMetricsPanel" style="display:none;">
+        <div style="font-weight:700; font-size:13px; margin-bottom:8px; color:var(--success);">
+          <i class="bi bi-check-circle-fill me-1"></i> Model Convergence Met successfully
+        </div>
+        <div class="d-flex justify-content-between flex-wrap gap-2 text-center">
+          <div><div style="font-size:10px; color:var(--text-secondary)">R² Score</div><strong style="font-size:15px;" id="finalR2">—</strong></div>
+          <div><div style="font-size:10px; color:var(--text-secondary)">MAE</div><strong style="font-size:15px;" id="finalMae">—</strong></div>
+          <div><div style="font-size:10px; color:var(--text-secondary)">RMSE</div><strong style="font-size:15px;" id="finalRmse">—</strong></div>
+          <div><div style="font-size:10px; color:var(--text-secondary)">MAPE</div><strong style="font-size:15px;" id="finalMape">—</strong></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Model Registry Registry Table -->
+<div class="row g-4 mt-4">
+  <div class="col-12">
+    <div class="card-panel">
+      <div class="card-header-bar">
+        <div class="card-title">
+          <i class="bi bi-archive-fill text-primary"></i> Model Registry & Version Control
+        </div>
+        <span class="badge bg-primary-light text-primary">Trained Coefficients</span>
+      </div>
+      <div class="card-body-pad p-0">
+        <table class="table table-premium m-0">
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Model Name</th>
+              <th>Regression Type</th>
+              <th>Data Segment</th>
+              <th>R²</th>
+              <th>MAE</th>
+              <th>RMSE</th>
+              <th>Trained At</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="modelRegistryBody">
+            {% if not models_history %}
+            <tr>
+              <td colspan="9" class="text-center text-muted py-4">No trained models in registry yet.</td>
+            </tr>
+            {% else %}
+              {% for m in models_history %}
+              <tr>
+                <td>
+                  {% if m.is_active %}
+                  <span class="badge badge-active"><i class="bi bi-check2-circle me-1"></i>Active</span>
+                  {% else %}
+                  <span class="badge bg-light text-secondary">Idle</span>
+                  {% endif %}
+                </td>
+                <td><strong>{{ m.name }}</strong></td>
+                <td><span class="badge badge-{{ (m.model_type|default('Linear'))|lower }}">{{ m.model_type }}</span></td>
+                <td>{{ m.data_type }}</td>
+                <td>{{ "%.4f"|format(m.metrics.get('r2', 0)) if m.metrics.get('r2') is not none else '—' }}</td>
+                <td>{{ "%.2f"|format(m.metrics.get('mae', 0)) if m.metrics.get('mae') is not none else '—' }}</td>
+                <td>{{ "%.2f"|format(m.metrics.get('rmse', 0)) if m.metrics.get('rmse') is not none else '—' }}</td>
+                <td>{{ m.timestamp }}</td>
+                <td>
+                  <button class="btn btn-sm btn-outline-primary" onclick="activateModel('{{ m.filename }}')">Activate</button>
+                </td>
+              </tr>
+              {% endfor %}
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/training.js') }}"></script>
+<script>
+// Sliders live values
+const lrSlider = document.getElementById('learningRate');
+const epSlider = document.getElementById('maxEpochs');
+
+lrSlider.addEventListener('input', () => {
+  document.getElementById('lrDisplay').textContent = parseFloat(lrSlider.value).toFixed(3);
+});
+epSlider.addEventListener('input', () => {
+  document.getElementById('epochsDisplay').textContent = parseInt(epSlider.value).toLocaleString();
+});
+
+function triggerTraining() {
+  document.getElementById('trainingPlaceholder').style.display = 'none';
+
+  const config = {
+    model_type: document.getElementById('modelType').value,
+    data_type: document.getElementById('dataType').value,
+    learning_rate: parseFloat(lrSlider.value),
+    max_epochs: parseInt(epSlider.value),
+    tolerance: parseFloat(document.getElementById('tolerance').value)
+  };
+
+  window.trainingManager.startTraining(config);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,546 @@
+{% extends 'base.html' %}
+{% block title %}Reports & Export{% endblock %}
+{% block page_title %}Reports & Export{% endblock %}
+{% block breadcrumb %}Data & Admin / Reports{% endblock %}
+
+{% block content %}
+<div class="row g-4 mb-4">
+  <!-- Status Panel -->
+  <div class="col-12 col-lg-4">
+    <div class="card-panel h-100">
+      <div class="card-header-bar">
+        <div class="card-title">
+          <i class="bi bi-info-circle text-primary"></i> Active Configuration
+        </div>
+      </div>
+      <div class="card-body-pad">
+        <div style="font-size:13px; color:var(--text-secondary); line-height:1.7;">
+          <div class="mb-2"><strong>Active Model:</strong> <span id="infoModelName">{{ active_model.get('name', 'N/A') }}</span></div>
+          <div class="mb-2"><strong>Regression Type:</strong> <span class="badge badge-model" id="infoModelType">{{ active_model.get('model_type', 'N/A') }}</span></div>
+          <div class="mb-2"><strong>Dataset Segment:</strong> <span id="infoDataType">{{ active_model.get('data_type', 'N/A') }}</span></div>
+          <div class="mb-2"><strong>Total Records:</strong> {{ dataset_info.get('rows', 0) }} sessions</div>
+          <div class="mb-0"><strong>Last Trained:</strong> <span id="infoTimestamp">{{ active_model.get('timestamp', 'N/A') }}</span></div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div style="font-size:11px; color:var(--text-muted); line-height:1.6;">
+          <i class="bi bi-check-circle-fill text-success me-1"></i>
+          Generated reports automatically compile training weights, convergence history, test validation errors (R², MAE, RMSE, MAPE), and recommendations.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Download Actions -->
+  <div class="col-12 col-lg-8">
+    <div class="card-panel h-100" id="exportOptionsCard">
+      <div class="card-header-bar">
+        <div class="card-title">
+          <i class="bi bi-download text-primary"></i> Export Options
+        </div>
+      </div>
+      <div class="card-body-pad">
+        <p style="font-size:13.5px; color:var(--text-secondary); margin-bottom:20px;">
+          Select your preferred file format to download the complete analysis report:
+        </p>
+
+        <div class="row g-3">
+          <!-- Excel -->
+          <div class="col-12 col-sm-6">
+            <button onclick="triggerExport('excel')" class="btn btn-outline-primary w-100 py-3 text-start d-flex align-items-center gap-3 export-btn" style="border-width: 1px;">
+              <i class="bi bi-file-earmark-excel fs-4 text-success"></i>
+              <div class="text-start">
+                <strong style="display:block; font-size:13.5px; color:var(--text);">Structured Excel</strong>
+                <span style="font-size:11px; color:var(--text-secondary);">Spreadsheet with complete records</span>
+              </div>
+            </button>
+          </div>
+
+          <!-- PDF -->
+          <div class="col-12 col-sm-6">
+            <button onclick="triggerExport('pdf')" class="btn btn-outline-primary w-100 py-3 text-start d-flex align-items-center gap-3 export-btn" style="border-width: 1px;">
+              <i class="bi bi-file-earmark-pdf fs-4 text-danger"></i>
+              <div class="text-start">
+                <strong style="display:block; font-size:13.5px; color:var(--text);">Executive PDF</strong>
+                <span style="font-size:11px; color:var(--text-secondary);">Printable analytics summary</span>
+              </div>
+            </button>
+          </div>
+
+          <!-- PNG -->
+          <div class="col-12 col-sm-6">
+            <button onclick="triggerExport('png')" class="btn btn-outline-primary w-100 py-3 text-start d-flex align-items-center gap-3 export-btn" style="border-width: 1px;">
+              <i class="bi bi-file-earmark-image fs-4 text-warning"></i>
+              <div class="text-start">
+                <strong style="display:block; font-size:13.5px; color:var(--text);">Chart Pack (PNG)</strong>
+                <span style="font-size:11px; color:var(--text-secondary);">Image pack of regression plots</span>
+              </div>
+            </button>
+          </div>
+
+          <!-- Markdown -->
+          <div class="col-12 col-sm-6">
+            <button onclick="triggerExport('markdown')" class="btn btn-outline-primary w-100 py-3 text-start d-flex align-items-center gap-3 export-btn" style="border-width: 1px;">
+              <i class="bi bi-filetype-md fs-4 text-primary"></i>
+              <div class="text-start">
+                <strong style="display:block; font-size:13.5px; color:var(--text);">Raw Markdown</strong>
+                <span style="font-size:11px; color:var(--text-secondary);">Clean markdown documentation file</span>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Report Preview -->
+<div class="row g-4">
+  <div class="col-12">
+    <div class="card-panel">
+      <div class="card-header-bar">
+        <div class="card-title">
+          <i class="bi bi-eye text-primary"></i> Live Document Preview
+        </div>
+        <span class="badge bg-primary-light text-primary">Power BI Export Frame</span>
+      </div>
+      
+      <!-- Preview Wrapper with state-handling -->
+      <div class="card-body-pad p-0" id="previewContainerWrapper" style="background:#F1F5F9;">
+        
+        <!-- State A: Empty State (No Model) -->
+        <div id="reportEmptyState" class="text-center py-5 bg-white" style="display:none; border-radius: 0 0 var(--radius) var(--radius);">
+          <div class="mb-4">
+            <span class="p-3 bg-light text-secondary rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 72px; height: 72px; font-size: 32px;">
+              📄
+            </span>
+          </div>
+          <h4 class="fw-bold text-dark mb-2" style="font-size:16px;">No Executive Report Available</h4>
+          <p class="text-secondary mx-auto mb-4" style="max-width: 320px; font-size: 13px;">Generate a report to preview it here.</p>
+          <a href="/training" class="btn btn-primary">
+            <i class="bi bi-cpu me-2"></i>Generate Executive Report
+          </a>
+        </div>
+
+        <!-- State B: Live PDF-style Viewer Frame -->
+        <div id="reportViewerFrame" style="display:none;">
+          <!-- Top Tool Bar -->
+          <div class="d-flex align-items-center justify-content-between p-3 bg-white border-bottom" style="font-size: 13px;">
+            <div class="d-flex align-items-center gap-3">
+              <span class="badge bg-secondary text-white py-1.5 px-3" style="border-radius: 4px;">Page 1 of 1</span>
+              <span class="text-secondary" style="font-weight: 500;"><i class="bi bi-zoom-in me-1"></i> Zoom: 100%</span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+              <button onclick="printReport()" class="btn btn-sm btn-outline-primary" style="font-size: 12px; font-weight: 600;"><i class="bi bi-printer me-1"></i> Print</button>
+              <button onclick="openInNewWindow()" class="btn btn-sm btn-outline-primary" style="font-size: 12px; font-weight: 600;"><i class="bi bi-box-arrow-up-right me-1"></i> Open in New Window</button>
+            </div>
+          </div>
+
+          <!-- Printable document sheet -->
+          <div class="report-paper-container py-4 px-2 d-flex justify-content-center" style="overflow-x:auto;">
+            <div class="report-paper bg-white shadow-lg p-5" id="printableReport" style="width: 820px; min-height: 1050px; border: 1px solid #CBD5E1; color: #1E293B;">
+              
+              <!-- Document Title Header -->
+              <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-4">
+                <div>
+                  <h4 class="fw-bold m-0" style="color:var(--primary); letter-spacing:-0.5px; font-size: 18px;">STREAMANALYTICA</h4>
+                  <span style="font-size:9.5px; text-transform:uppercase; letter-spacing:1px; color:#64748B; font-weight: 700;">Executive Performance &amp; AI Intelligence Report</span>
+                </div>
+                <div class="text-end" style="font-size:11px; color:#64748B; line-height: 1.4;">
+                  <div>Generated: <span id="reportGenDate">—</span></div>
+                  <div>Security Profile: <strong>Confidential</strong></div>
+                </div>
+              </div>
+
+              <!-- Executive Summary -->
+              <div class="mb-4">
+                <h5 class="fw-bold border-bottom pb-1 text-dark mb-2" style="font-size: 13.5px;">1. Executive Summary</h5>
+                <p style="font-size: 12.5px; color:#334155; line-height:1.6; margin:0;">
+                  This report compiles regression parameters generated by the Stochastic Gradient Descent (SGD) algorithm to evaluate TikTok live stream performance metrics (Live Duration, Viewers) against sales targets (Products Sold). Optimization constraints have been verified for compliance.
+                </p>
+              </div>
+
+              <!-- KPIs Grid -->
+              <div class="mb-4">
+                <h5 class="fw-bold border-bottom pb-1 text-dark mb-2" style="font-size: 13.5px;">2. Business KPIs & Performance Metrics</h5>
+                <div class="row g-2 text-center" style="font-size: 12px;">
+                  <div class="col-3">
+                    <div class="p-2 border rounded" style="background:#F8FAFC;">
+                      <div class="text-muted" style="font-size: 9px; text-transform: uppercase;">Confidence (R²)</div>
+                      <strong id="pdfR2" style="font-size: 14px; color:var(--primary);">—%</strong>
+                    </div>
+                  </div>
+                  <div class="col-3">
+                    <div class="p-2 border rounded" style="background:#F8FAFC;">
+                      <div class="text-muted" style="font-size: 9px; text-transform: uppercase;">Mean Abs Error</div>
+                      <strong id="pdfMAE" style="font-size: 14px; color:var(--primary);">—</strong>
+                    </div>
+                  </div>
+                  <div class="col-3">
+                    <div class="p-2 border rounded" style="background:#F8FAFC;">
+                      <div class="text-muted" style="font-size: 9px; text-transform: uppercase;">RMSE Deviation</div>
+                      <strong id="pdfRMSE" style="font-size: 14px; color:var(--primary);">—</strong>
+                    </div>
+                  </div>
+                  <div class="col-3">
+                    <div class="p-2 border rounded" style="background:#F8FAFC;">
+                      <div class="text-muted" style="font-size: 9px; text-transform: uppercase;">MAPE Error</div>
+                      <strong id="pdfMAPE" style="font-size: 14px; color:var(--primary);">—%</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Prediction Equation & Formula -->
+              <div class="mb-4">
+                <h5 class="fw-bold border-bottom pb-1 text-dark mb-2" style="font-size: 13.5px;">3. Research Equations Specifications</h5>
+                <div class="p-3 border rounded font-monospace" id="pdfEquation" style="font-size: 11px; background:#F8FAFC; color:#1E293B;">
+                  —
+                </div>
+              </div>
+
+              <!-- Two Column split: Charts on left, Statistics Table on right -->
+              <div class="row g-4 mb-4 align-items-start">
+                <div class="col-6">
+                  <h5 class="fw-bold border-bottom pb-1 text-dark mb-2" style="font-size: 13.5px;">4. Diagnostic Charts Preview</h5>
+                  <div id="pdfScatterChart" style="height: 200px; border: 1px solid #E2E8F0; border-radius: 6px;"></div>
+                </div>
+                <div class="col-6">
+                  <h5 class="fw-bold border-bottom pb-1 text-dark mb-2" style="font-size: 13.5px;">5. Summary Statistics</h5>
+                  <div style="max-height: 200px; overflow-y:auto; border: 1px solid #E2E8F0; border-radius: 6px;">
+                    <table class="table table-sm table-premium m-0" style="font-size: 10px;">
+                      <thead>
+                        <tr>
+                          <th>Feature</th>
+                          <th>Mean</th>
+                          <th>Std Dev</th>
+                          <th>Max</th>
+                        </tr>
+                      </thead>
+                      <tbody id="pdfStatsBody">
+                        <!-- Populated by JS -->
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Recommendations -->
+              <div class="mb-4">
+                <h5 class="fw-bold border-bottom pb-1 text-dark mb-2" style="font-size: 13.5px;">6. Business Recommendations</h5>
+                <ul class="mb-0" style="font-size: 11.5px; color:#475569; padding-left: 20px; line-height: 1.6;">
+                  <li class="mb-1"><strong>Target optimal stream duration:</strong> Keep broadcast duration at 58 minutes. Streams below 1h trigger search index rank penalties.</li>
+                  <li class="mb-1"><strong>Viewers retention logic:</strong> Deploy flash discounts and giveaways during concurrent active viewers peaks to leverage coefficient scaling.</li>
+                  <li class="mb-0"><strong>Continuous model tuning:</strong> Upload fresh spreadsheets weekly to maintain weights compatibility with seasonal shopper dynamics.</li>
+                </ul>
+              </div>
+
+              <!-- Footer block -->
+              <div class="border-top pt-3 text-center mt-5" style="font-size: 10px; color:#94A3B8;">
+                StreamAnalytica AI Dashboard Suite &bull; Confident Executive Analysis Report
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Export Progress Modal -->
+<div class="modal fade" id="exportProgressModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow-lg);">
+      <div class="modal-header border-0">
+        <h5 class="modal-title fw-bold" id="exportTitle" style="font-size:15px; color:var(--text);">Preparing Export</h5>
+      </div>
+      <div class="modal-body py-4">
+        <div class="progress-custom mb-4" style="height: 6px;">
+          <div class="progress-bar" id="exportProgressBar" style="width: 0%; height: 6px;"></div>
+        </div>
+        
+        <!-- Steps list -->
+        <div class="d-flex align-items-center gap-3 mb-3 text-muted" id="exportStep1">
+          <div class="step-icon-container" style="width: 24px; text-align: center;" id="exportStep1Icon">
+            <span class="spinner-border spinner-border-sm text-primary"></span>
+          </div>
+          <span style="font-size: 13px; font-weight: 500;" id="exportStep1Text">Generating report...</span>
+        </div>
+        
+        <div class="d-flex align-items-center gap-3 mb-3 text-muted" id="exportStep2">
+          <div class="step-icon-container" style="width: 24px; text-align: center;" id="exportStep2Icon">
+            <i class="bi bi-circle"></i>
+          </div>
+          <span style="font-size: 13px; font-weight: 500;" id="exportStep2Text">Preparing Charts...</span>
+        </div>
+        
+        <div class="d-flex align-items-center gap-3 mb-3 text-muted" id="exportStep3">
+          <div class="step-icon-container" style="width: 24px; text-align: center;" id="exportStep3Icon">
+            <i class="bi bi-circle"></i>
+          </div>
+          <span style="font-size: 13px; font-weight: 500;" id="exportStep3Text">Rendering PDF...</span>
+        </div>
+        
+        <div class="d-flex align-items-center gap-3 mb-3 text-muted" id="exportStep4">
+          <div class="step-icon-container" style="width: 24px; text-align: center;" id="exportStep4Icon">
+            <i class="bi bi-circle"></i>
+          </div>
+          <span style="font-size: 13px; font-weight: 500;" id="exportStep4Text">Packaging Assets...</span>
+        </div>
+        
+        <div class="d-flex align-items-center gap-3 text-muted" id="exportStep5">
+          <div class="step-icon-container" style="width: 24px; text-align: center;" id="exportStep5Icon">
+            <i class="bi bi-circle"></i>
+          </div>
+          <span style="font-size: 13px; font-weight: 500;" id="exportStep5Text">Download Ready</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let exportModalInstance = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadReportPreview();
+  
+  const modalEl = document.getElementById('exportProgressModal');
+  if (modalEl) {
+    exportModalInstance = new bootstrap.Modal(modalEl);
+  }
+});
+
+async function loadReportPreview() {
+  const emptyState = document.getElementById('reportEmptyState');
+  const viewerFrame = document.getElementById('reportViewerFrame');
+  const btns = document.querySelectorAll('.export-btn');
+
+  try {
+    const res = await getJSON('/api/v1/reports/preview');
+    
+    // Load metadata and values
+    document.getElementById('reportGenDate').textContent = new Date().toLocaleString();
+    
+    // Fetch stats and model detail for preview loading
+    const activeModelRes = await getJSON('/api/v1/analytics/surface');
+    const m = activeModelRes.metrics || {};
+    
+    document.getElementById('pdfR2').textContent = m.r2 != null ? (m.r2 * 100).toFixed(2) + '%' : '—%';
+    document.getElementById('pdfMAE').textContent = m.mae != null ? m.mae.toFixed(2) : '—';
+    document.getElementById('pdfRMSE').textContent = m.rmse != null ? m.rmse.toFixed(2) : '—';
+    document.getElementById('pdfMAPE').textContent = m.mape != null ? m.mape.toFixed(2) + '%' : '—%';
+
+    // Call predict to build unscaled equation string
+    const formulaPayload = { durasi: 8.0, penonton: 100 };
+    const formulaRes = await postJSON('/api/v1/predict', formulaPayload);
+    const tTheta = formulaRes.theta_thesis || [];
+    const tBias = formulaRes.bias_thesis || 0;
+    const mType = formulaRes.model_type || 'Linear';
+    let formula = '';
+    if (mType === 'Linear' && tTheta.length >= 2) {
+      formula = `y = ${tBias.toFixed(4)} + ${tTheta[0].toFixed(4)}·Duration + ${tTheta[1].toFixed(4)}·Viewers`;
+    } else if (mType === 'Logarithmic' && tTheta.length >= 2) {
+      formula = `y = ${tBias.toFixed(4)} + ${tTheta[0].toFixed(4)}·ln(Duration+1) + ${tTheta[1].toFixed(4)}·ln(Viewers+1)`;
+    } else if (mType === 'Polynomial') {
+      formula = `y = ${tBias.toFixed(4)} + θ₁·x₁ + θ₂·x₂ + θ₃·x₁² + θ₄·x₁x₂ + θ₅·x₂²`;
+    } else {
+      formula = `Active Model Model Equation`;
+    }
+    document.getElementById('pdfEquation').textContent = formula;
+
+    // Render Stats inside preview sheet
+    const statsRes = await getJSON('/api/v1/dataset/stats');
+    const statsBody = document.getElementById('pdfStatsBody');
+    if (statsRes.stats) {
+      statsBody.innerHTML = statsRes.stats.map(s => `
+        <tr>
+          <td><strong>${s.Feature}</strong></td>
+          <td>${s.Mean.toFixed(2)}</td>
+          <td>${s['Std Dev'].toFixed(2)}</td>
+          <td>${s.Max.toFixed(1)}</td>
+        </tr>
+      `).join('');
+    }
+
+    // Render diagnostic scatter
+    if (activeModelRes.actual && activeModelRes.predicted) {
+      window.renderActualVsPredicted(
+        'pdfScatterChart',
+        activeModelRes.actual.z,
+        activeModelRes.predicted.z
+      );
+    }
+
+    // Show viewer sheet
+    emptyState.style.display = 'none';
+    viewerFrame.style.display = 'block';
+
+  } catch (err) {
+    // If NO_MODEL error returned, show friendly UI fallback
+    if (err.message && (err.message.includes('NO_MODEL') || err.message.includes('400'))) {
+      emptyState.style.display = 'block';
+      viewerFrame.style.display = 'none';
+      
+      // Disable export buttons
+      btns.forEach(b => {
+        b.disabled = true;
+        b.style.opacity = '0.5';
+        b.style.cursor = 'not-allowed';
+      });
+      
+      // Clear config metadata
+      document.getElementById('infoModelName').textContent = 'N/A';
+      document.getElementById('infoModelType').textContent = 'N/A';
+      document.getElementById('infoDataType').textContent = 'N/A';
+      document.getElementById('infoTimestamp').textContent = 'N/A';
+    } else {
+      emptyState.style.display = 'block';
+      viewerFrame.style.display = 'none';
+      console.error(err);
+    }
+  }
+}
+
+function printReport() {
+  const printContent = document.getElementById('printableReport').innerHTML;
+  const win = window.open('', '_blank');
+  win.document.write(`
+    <html>
+      <head>
+        <title>Print Report — StreamAnalytica</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <style>
+          body { font-family: 'Inter', sans-serif; padding: 40px; color: #1E293B; background: #FFF; }
+          .border-bottom { border-bottom: 1px solid #CBD5E1!important; }
+          .report-paper { width: 100%; border: none!important; padding: 0!important; box-shadow: none!important; }
+          h1, h2, h3, h4, h5, h6 { color: #0F172A; }
+          .table-premium th { text-transform: uppercase; font-size: 10px; font-weight: 700; color: #64748B; background: #F8FAFC; border-bottom: 1px solid #CBD5E1; }
+          .table-premium td { border-bottom: 1px solid #E2E8F0; }
+        </style>
+      </head>
+      <body onload="setTimeout(function(){ window.print(); window.close(); }, 500);">
+        <div class="report-paper">
+          ${printContent}
+        </div>
+      </body>
+    </html>
+  `);
+  win.document.close();
+}
+
+function openInNewWindow() {
+  const printContent = document.getElementById('printableReport').innerHTML;
+  const win = window.open('', '_blank');
+  win.document.write(`
+    <html>
+      <head>
+        <title>Executive Summary — StreamAnalytica</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <style>
+          body { font-family: 'Inter', sans-serif; padding: 60px; background: #F1F5F9; color: #1E293B; display: flex; justify-content: center; }
+          .report-paper { width: 800px; background: #FFF; border: 1px solid #CBD5E1; padding: 50px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+          .border-bottom { border-bottom: 1px solid #E2E8F0!important; }
+          h1, h2, h3, h4, h5, h6 { color: #0F172A; }
+        </style>
+      </head>
+      <body>
+        <div class="report-paper">
+          ${printContent}
+        </div>
+      </body>
+    </html>
+  `);
+  win.document.close();
+}
+
+function triggerExport(format) {
+  if (!exportModalInstance) return;
+  
+  exportModalInstance.show();
+  resetModalSteps();
+  
+  // Phase 1: Generating report
+  updateStep(1, 'active', 'Generating report...');
+  setProgress(20);
+  
+  setTimeout(() => {
+    // Phase 2: Preparing Charts
+    updateStep(1, 'done', 'Report generated.');
+    updateStep(2, 'active', 'Preparing Charts...');
+    setProgress(40);
+    
+    setTimeout(() => {
+      // Phase 3: Rendering PDF
+      const formatUpper = format.toUpperCase();
+      updateStep(2, 'done', 'Charts prepared.');
+      updateStep(3, 'active', `Rendering ${formatUpper}...`);
+      setProgress(60);
+      
+      setTimeout(() => {
+        // Phase 4: Packaging Assets
+        updateStep(3, 'done', `${formatUpper} rendered.`);
+        updateStep(4, 'active', 'Packaging Assets...');
+        setProgress(80);
+        
+        setTimeout(() => {
+          // Phase 5: Download Ready
+          updateStep(4, 'done', 'Assets packaged.');
+          updateStep(5, 'done', 'Download Ready');
+          setProgress(100);
+          
+          setTimeout(() => {
+            exportModalInstance.hide();
+            window.location.href = `/api/v1/reports/${format}`;
+          }, 800);
+        }, 600);
+      }, 700);
+    }, 600);
+  }, 500);
+}
+
+function setProgress(pct) {
+  const bar = document.getElementById('exportProgressBar');
+  if (bar) bar.style.width = `${pct}%`;
+}
+
+function resetModalSteps() {
+  setProgress(0);
+  for (let i = 1; i <= 5; i++) {
+    const row = document.getElementById(`exportStep${i}`);
+    const icon = document.getElementById(`exportStep${i}Icon`);
+    if (row && icon) {
+      row.className = 'd-flex align-items-center gap-3 mb-3 text-muted';
+      icon.innerHTML = '<i class="bi bi-circle"></i>';
+    }
+  }
+  const step5 = document.getElementById('exportStep5');
+  if (step5) step5.className = 'd-flex align-items-center gap-3 text-muted';
+}
+
+function updateStep(stepNum, state, text) {
+  const row = document.getElementById(`exportStep${stepNum}`);
+  const icon = document.getElementById(`exportStep${stepNum}Icon`);
+  const textEl = document.getElementById(`exportStep${stepNum}Text`);
+  
+  if (!row || !icon) return;
+  
+  if (text) textEl.textContent = text;
+  
+  if (state === 'active') {
+    row.className = row.className.replace('text-muted', 'text-primary fw-medium');
+    icon.innerHTML = '<span class="spinner-border spinner-border-sm text-primary"></span>';
+  } else if (state === 'done') {
+    row.className = row.className.replace('text-primary fw-medium', 'text-success').replace('text-muted', 'text-success');
+    icon.innerHTML = '<i class="bi bi-check-circle-fill text-success" style="font-size: 15px;"></i>';
+  }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,249 @@
+{% extends 'base.html' %}
+{% block title %}Model Experiments{% endblock %}
+{% block page_title %}Model Experiments{% endblock %}
+{% block breadcrumb %}ML Engine / Experiments{% endblock %}
+
+{% block content %}
+<div class="row g-4 mb-4">
+  <!-- Benchmark control -->
+  <div class="col-12 col-lg-5">
+    <div class="card-panel">
+      <div class="card-header-bar">
+        <div class="card-title">
+          <i class="bi bi-play-circle text-primary"></i> Benchmark Engine
+        </div>
+        <span class="badge bg-primary-light text-primary">Parallel Training</span>
+      </div>
+      <div class="card-body-pad">
+        <p style="font-size:13px; color:var(--text-secondary); line-height:1.6;">
+          Train all three model classes (Linear, Polynomial, Logarithmic Regression) on the selected dataset segment simultaneously to compare fit and error metrics.
+        </p>
+
+        <div class="mb-3">
+          <label class="form-label" for="expDataType">Select Dataset Segment</label>
+          <select class="form-select" id="expDataType">
+            <option value="All Data">All Data (Full Dataset)</option>
+            <option value="Cleaned Data">Cleaned Data (IQR Outliers Removed)</option>
+            <option value="Weekly Data">Weekly Data (Weekly Averages)</option>
+            <option value="Monthly Data">Monthly Data (Monthly Averages)</option>
+          </select>
+        </div>
+
+        <button class="btn btn-primary w-100 btn-lg" id="runBenchmarkBtn" onclick="runAllModels()">
+          <i class="bi bi-lightning-fill"></i> Run Benchmarks
+        </button>
+
+        <div id="benchmarkProgress" class="mt-4" style="display:none;">
+          <div class="mb-2 d-flex justify-content-between align-items-center" style="font-size:12px;">
+            <span id="benchmarkStatus">Running experiment...</span>
+            <span class="spinner-border spinner-border-sm text-primary"></span>
+          </div>
+          <ul class="list-group list-group-flush border rounded p-0" style="font-size:12.5px;">
+            <li class="list-group-item d-flex justify-content-between align-items-center py-2" id="status-Linear">
+              <span>Linear Regression</span><span class="badge bg-secondary">Pending</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center py-2" id="status-Polynomial">
+              <span>Polynomial Regression</span><span class="badge bg-secondary">Pending</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center py-2" id="status-Logarithmic">
+              <span>Logarithmic Regression</span><span class="badge bg-secondary">Pending</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Benchmarking description -->
+  <div class="col-12 col-lg-7">
+    <div class="card-panel h-100" style="background:var(--bg); border:1px dashed var(--border);">
+      <div class="card-body-pad">
+        <div style="font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.8px; margin-bottom:12px;">
+          <i class="bi bi-info-circle me-1"></i> Scientific Evaluation & Validation Metrics
+        </div>
+        <div style="font-size:13px; color:var(--text-secondary); line-height:1.75;">
+          <div style="margin-bottom:12px;">
+            <strong>R-Squared (R²):</strong> Explains the proportion of variance in the dependent variable (sales) predicted by the features. Values closer to 1.0 indicate superior explanatory power.
+          </div>
+          <div style="margin-bottom:12px;">
+            <strong>Mean Absolute Error (MAE):</strong> Measures average absolute prediction error in product counts. Smaller values represent higher precision.
+          </div>
+          <div style="margin-bottom:12px;">
+            <strong>Root Mean Squared Error (RMSE):</strong> Penalizes larger prediction errors disproportionately, acting as a critical metric for evaluating high-variance sales sessions.
+          </div>
+          <div style="margin-bottom:0;">
+            <strong>Mean Absolute Percentage Error (MAPE):</strong> Expresses absolute error as a percentage, reflecting performance across streams of differing sizes.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Comparison Charts Row -->
+<div class="row g-4 mb-4">
+  <div class="col-12 col-md-6">
+    <div class="chart-container">
+      <div class="chart-header">
+        <div class="chart-title">R² Score Comparison</div>
+      </div>
+      <div class="chart-body">
+        <div id="r2CompareChart" style="height:250px;"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-6">
+    <div class="chart-container">
+      <div class="chart-header">
+        <div class="chart-title">RMSE Error Comparison</div>
+      </div>
+      <div class="chart-body">
+        <div id="rmseCompareChart" style="height:250px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Registry Comparison Table -->
+<div class="row g-4">
+  <div class="col-12">
+    <div class="card-panel">
+      <div class="card-header-bar">
+        <div class="card-title">
+          <i class="bi bi-layout-three-columns text-primary"></i> Benchmark Statistics
+        </div>
+      </div>
+      <div class="card-body-pad p-0">
+        <table class="table table-premium m-0">
+          <thead>
+            <tr>
+              <th>Model Name</th>
+              <th>Regression Type</th>
+              <th>Segment</th>
+              <th>R² Score</th>
+              <th>MAE</th>
+              <th>RMSE</th>
+              <th>MAPE</th>
+              <th>Trained At</th>
+            </tr>
+          </thead>
+          <tbody id="experimentsBody">
+            {% if not models_list %}
+            <tr>
+              <td colspan="8" class="text-center text-muted py-4">No trained models. Run benchmark to compare.</td>
+            </tr>
+            {% else %}
+              {% for m in models_list %}
+              <tr>
+                <td><strong>{{ m.name }}</strong></td>
+                <td><span class="badge badge-{{ (m.model_type|default('Linear'))|lower }}">{{ m.model_type }}</span></td>
+                <td>{{ m.data_type }}</td>
+                <td>{{ "%.4f"|format(m.metrics.get('r2', 0)) if m.metrics.get('r2') is not none else '—' }}</td>
+                <td>{{ "%.2f"|format(m.metrics.get('mae', 0)) if m.metrics.get('mae') is not none else '—' }}</td>
+                <td>{{ "%.2f"|format(m.metrics.get('rmse', 0)) if m.metrics.get('rmse') is not none else '—' }}</td>
+                <td>{{ "%.2f"|format(m.metrics.get('mape', 0)) if m.metrics.get('mape') is not none else '—' }}%</td>
+                <td>{{ m.timestamp }}</td>
+              </tr>
+              {% endfor %}
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  renderComparisonCharts();
+});
+
+function renderComparisonCharts() {
+  const list = JSON.parse('{{ models_json|safe }}');
+  if (!list || list.length === 0) return;
+
+  const names = list.map(m => m.name);
+  const r2s = list.map(m => m.metrics.r2 || 0);
+  const rmses = list.map(m => m.metrics.rmse || 0);
+
+  // R2 Compare
+  window.renderModelComparisonBar('r2CompareChart', names, r2s, 'R2 Score', true);
+
+  // RMSE Compare
+  window.renderModelComparisonBar('rmseCompareChart', names, rmses, 'RMSE Value', false);
+}
+
+async function runAllModels() {
+  const panel = document.getElementById('benchmarkProgress');
+  const segment = document.getElementById('expDataType').value;
+  const btn = document.getElementById('runBenchmarkBtn');
+
+  panel.style.display = 'block';
+  showSpinner(btn);
+
+  const models = ['Linear', 'Polynomial', 'Logarithmic'];
+  
+  // Set all to pending
+  models.forEach(m => {
+    updateRowStatus(m, 'Pending', 'bg-secondary');
+  });
+
+  for (let m of models) {
+    try {
+      updateRowStatus(m, 'Training...', 'bg-primary spinner-border-sm');
+      const payload = {
+        model_type: m,
+        data_type: segment,
+        learning_rate: 0.01,
+        max_epochs: 1000,
+        tolerance: 0.001
+      };
+      
+      // We start training and block in this script (waiting for completeness)
+      const startRes = await postJSON('/api/v1/training/start', payload);
+      await monitorSseComplete(startRes.session_id);
+      
+      updateRowStatus(m, 'Complete', 'bg-success');
+    } catch (e) {
+      updateRowStatus(m, 'Failed', 'bg-danger');
+      showToast(`Failed training model ${m}: ${e.message}`, 'error');
+    }
+  }
+
+  showToast('✓ Benchmark completed successfully.', 'success');
+  hideSpinner(btn);
+  
+  // Reload page to reflect stats
+  setTimeout(() => location.reload(), 1500);
+}
+
+function updateRowStatus(model, text, bgClass) {
+  const el = document.getElementById(`status-${model}`);
+  if (!el) return;
+  el.querySelector('.badge').className = `badge ${bgClass}`;
+  el.querySelector('.badge').textContent = text;
+}
+
+function monitorSseComplete(sessionId) {
+  return new Promise((resolve, reject) => {
+    const es = new EventSource(`/api/v1/training/stream/${sessionId}`);
+    es.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'complete') {
+        es.close();
+        resolve(data);
+      } else if (data.type === 'error') {
+        es.close();
+        reject(new Error(data.message));
+      }
+    };
+    es.onerror = () => {
+      es.close();
+      reject(new Error('Connection lost.'));
+    };
+  });
+}
+</script>
+{% endblock %}
